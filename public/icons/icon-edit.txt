@@ -1,0 +1,1 @@
+Built-in Imagegen edit. Prompt: Remove the white margin, extend the matching green gradient to all edges and corners; preserve the cream notebook, rings, checkmarks, tabs, palette and 3D styling. Square Apple app icon, no baked-in rounded corners.
