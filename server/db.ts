@@ -6,11 +6,18 @@ db.pragma('foreign_keys = ON');
 db.exec(`
 CREATE TABLE IF NOT EXISTS courses (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, code TEXT DEFAULT '', semester TEXT NOT NULL, ects REAL NOT NULL DEFAULT 5, hours_per_ects REAL NOT NULL DEFAULT 25, color TEXT NOT NULL DEFAULT '#3b82f6', description TEXT DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
 CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, description TEXT DEFAULT '', area TEXT NOT NULL CHECK(area IN ('Universität','Privat')), type TEXT NOT NULL, course_id INTEGER REFERENCES courses(id) ON DELETE SET NULL, deadline TEXT, estimate_minutes INTEGER NOT NULL DEFAULT 60, priority TEXT NOT NULL DEFAULT 'Mittel', status TEXT NOT NULL DEFAULT 'Offen', tracking INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, completed_at TEXT);
-CREATE TABLE IF NOT EXISTS work_sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE, started_at TEXT NOT NULL, ended_at TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'Selbstlernen', note TEXT DEFAULT '');
+CREATE TABLE IF NOT EXISTS work_sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE, course_id INTEGER REFERENCES courses(id) ON DELETE SET NULL, started_at TEXT NOT NULL, ended_at TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'Selbstlernen', note TEXT DEFAULT '');
 CREATE TABLE IF NOT EXISTS planned_blocks (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE, course_id INTEGER REFERENCES courses(id) ON DELETE SET NULL, title TEXT NOT NULL, starts_at TEXT NOT NULL, ends_at TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'Arbeit');
 CREATE TABLE IF NOT EXISTS recurring_events (id INTEGER PRIMARY KEY AUTOINCREMENT, course_id INTEGER REFERENCES courses(id) ON DELETE CASCADE, title TEXT NOT NULL, weekday INTEGER NOT NULL, start_time TEXT NOT NULL, end_time TEXT NOT NULL, starts_on TEXT NOT NULL, ends_on TEXT, auto_track INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 `);
+
+// Upgrade existing local databases while preserving all recorded times.
+const sessionColumns=db.prepare('PRAGMA table_info(work_sessions)').all() as {name:string;notnull:number}[];
+if(sessionColumns.find(c=>c.name==='task_id')?.notnull || !sessionColumns.some(c=>c.name==='course_id')) db.transaction(()=>{
+ db.exec(`CREATE TABLE work_sessions_updated (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER REFERENCES tasks(id) ON DELETE CASCADE, course_id INTEGER REFERENCES courses(id) ON DELETE SET NULL, started_at TEXT NOT NULL, ended_at TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'Selbstlernen', note TEXT DEFAULT '');`);
+ db.exec(`INSERT INTO work_sessions_updated SELECT id,task_id,${sessionColumns.some(c=>c.name==='course_id')?'course_id':'NULL'},started_at,ended_at,kind,note FROM work_sessions; DROP TABLE work_sessions; ALTER TABLE work_sessions_updated RENAME TO work_sessions;`);
+})();
 
 export function allData() {
   return {

@@ -1,7 +1,7 @@
 import type { AppData } from './types';
 import { cloud } from './cloud';
 const tables:Record<string,string>={courses:'courses',tasks:'tasks',sessions:'work_sessions',blocks:'planned_blocks',recurring:'recurring_events',settings:'settings'};
-const columns:Record<string,string[]>={courses:['name','code','semester','ects','hours_per_ects','color','description'],tasks:['title','description','area','type','course_id','deadline','estimate_minutes','priority','status','tracking','completed_at'],sessions:['task_id','started_at','ended_at','kind','note'],blocks:['task_id','course_id','title','starts_at','ends_at','kind'],recurring:['course_id','title','weekday','start_time','end_time','starts_on','ends_on','auto_track'],settings:['key','value']};
+const columns:Record<string,string[]>={courses:['name','code','semester','ects','hours_per_ects','color','description'],tasks:['title','description','area','type','course_id','deadline','estimate_minutes','priority','status','tracking','completed_at'],sessions:['task_id','course_id','started_at','ended_at','kind','note'],blocks:['task_id','course_id','title','starts_at','ends_at','kind'],recurring:['course_id','title','weekday','start_time','end_time','starts_on','ends_on','auto_track'],settings:['key','value']};
 export async function loadData(): Promise<AppData> {
  if(!cloud){const r=await fetch('/api/data');if(!r.ok)throw new Error('Backend nicht erreichbar');return r.json()}
  const data:Record<string,any>={};
