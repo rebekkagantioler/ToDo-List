@@ -72,3 +72,9 @@ Dieses Projekt ist ein funktionsfähiges Grundsystem, noch nicht die vollständi
 Die Anmeldung verwendet Benutzername und Passwort; die Registrierung in der App ist entfernt. `VITE_LOGIN_USERNAME` und `VITE_LOGIN_EMAIL` ordnen den Namen einem bestehenden Supabase-Konto zu. Beide Werte müssen lokal in `.env` und für GitHub Pages als Repository-Variablen gesetzt werden. Das Passwort wird ausschließlich an Supabase Auth gesendet. Alle VITE-Werte einschließlich der Kontoadresse sind im ausgelieferten Browser-Code sichtbar; sie sind keine Geheimnisse.
 
 Nach Einrichtung des Kontos unter Supabase Authentication → Sign In / Providers „Allow new users to sign up“ deaktivieren, damit auch über die API keine weiteren Registrierungen möglich sind. Das Entfernen des Registrierungsbuttons allein setzt diese Projekteinstellung nicht. Die Benutzertrennung bleibt über RLS erhalten. Ein bereits unbestätigtes Konto muss weiterhin einmal bestätigt werden; die App umgeht diese serverseitige Regel nicht.
+
+## Kalender und Zeit erfassen
+
+Die Aufgabenleiste links im Kalender trennt Uni und Privat. Eine Karte auf die gewünschte Uhrzeit ziehen; am Handy kann alternativ „Planen“ verwendet werden. Neue Aufgaben direkt über das Plus in der Leiste erstellen. Privat auswählen und eine Kategorie wählen oder selbst eingeben (etwa Haushalt, Sport oder Einkaufen). Kategorien nutzen das vorhandene Feld `type`, es ist keine Datenbankmigration erforderlich.
+
+Unter Zeiterfassung eine Aufgabe auswählen und „Timer starten“ drücken. Der Timer zeigt Stunden, Minuten und Sekunden; Pause/Fortsetzen und „Stoppen & speichern“ sind dort sowie in der seitenübergreifenden Timerleiste verfügbar. Private Aufgaben haben standardmäßig keine Zeiterfassung, sie kann im Aufgabendialog aktiviert werden. „Verwerfen“ fragt vor dem Verlust ungespeicherter Zeit nach.
