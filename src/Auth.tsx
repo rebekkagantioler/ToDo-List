@@ -15,7 +15,13 @@ export function Auth({children}:{children:ReactNode}) {
   setBusy(true);
   try {
    const {error}=await cloud!.auth.signInWithPassword({email:loginEmail,password});
-   if(error)setMessage(error.code==='email_not_confirmed'?'Dein bestehendes Konto ist noch unbestätigt. Bitte bestätige es einmal in Supabase.':error.code==='invalid_credentials'?'Benutzername oder Passwort stimmt nicht.':'Anmeldung fehlgeschlagen. Bitte versuche es erneut.');
+   if(error){
+    const code=error.code;
+    if(code==='email_not_confirmed')setMessage('Dein bestehendes Konto ist noch unbestätigt. Bitte bestätige es einmal in Supabase.');
+    else if(code==='invalid_credentials')setMessage('Benutzername oder Passwort stimmt nicht.');
+    else if(error.status===429)setMessage('Zu viele Anmeldeversuche. Bitte warte einige Minuten.');
+    else setMessage(`Anmeldung fehlgeschlagen: ${error.message} (${code||'HTTP '+error.status}).`);
+   }
   }catch{setMessage('Verbindung fehlgeschlagen. Bitte versuche es erneut.');}finally{setBusy(false)}
  }
  return <div className="loading"><form className="modal" onSubmit={e=>{e.preventDefault();void submit()}}><h1>Planraum</h1><p>Dein persönlicher Uni- und Privatplaner.</p><div className="form-grid"><label className="full">Benutzername<input required type="text" autoComplete="username" autoCapitalize="none" spellCheck={false} value={username} onChange={e=>setUsername(e.target.value)}/></label><label className="full">Passwort<input required type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)}/></label></div>{message&&<p role="alert">{message}</p>}<div className="modal-actions"><button disabled={busy} className="primary">Anmelden</button></div></form></div>;
