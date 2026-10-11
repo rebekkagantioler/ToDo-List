@@ -66,3 +66,9 @@ Dieses Projekt ist ein funktionsfähiges Grundsystem, noch nicht die vollständi
 `tests/api.test.ts` startet eine echte API mit einer separaten temporären SQLite-Datenbank und prüft deaktivierte Zeiterfassung, null Minuten Aufwand, ungültige Intervalle, Fremdschlüssel, unabhängiges Löschen von Blöcken, vollständigen Backup-Import, Rollback und Löschbeziehungen. Persönliche Daten werden dabei nicht verwendet.
 
 `tests/supabase.test.ts` prüft das SQL-Schema mit PGlite/PostgreSQL: RLS für zwei Benutzer, Verhinderung fremder Kursbeziehungen, atomaren Import und Kurslöschung ohne Verlust der Aufgaben. Supabase-Dienste selbst werden dabei nicht simuliert.
+
+## Persönliches Konto
+
+Die Anmeldung verwendet Benutzername und Passwort; die Registrierung in der App ist entfernt. `VITE_LOGIN_USERNAME` und `VITE_LOGIN_EMAIL` ordnen den Namen einem bestehenden Supabase-Konto zu. Beide Werte müssen lokal in `.env` und für GitHub Pages als Repository-Variablen gesetzt werden. Das Passwort wird ausschließlich an Supabase Auth gesendet. Alle VITE-Werte einschließlich der Kontoadresse sind im ausgelieferten Browser-Code sichtbar; sie sind keine Geheimnisse.
+
+Nach Einrichtung des Kontos unter Supabase Authentication → Sign In / Providers „Allow new users to sign up“ deaktivieren, damit auch über die API keine weiteren Registrierungen möglich sind. Das Entfernen des Registrierungsbuttons allein setzt diese Projekteinstellung nicht. Die Benutzertrennung bleibt über RLS erhalten. Ein bereits unbestätigtes Konto muss weiterhin einmal bestätigt werden; die App umgeht diese serverseitige Regel nicht.
