@@ -80,3 +80,5 @@ Die Aufgabenleiste links im Kalender trennt Uni und Privat. Eine Karte auf die g
 Unter Zeiterfassung eine Aufgabe auswählen und „Timer starten“ drücken. Der Timer zeigt Stunden, Minuten und Sekunden; Pause/Fortsetzen und „Stoppen & speichern“ sind dort sowie in der seitenübergreifenden Timerleiste verfügbar. Private Aufgaben haben standardmäßig keine Zeiterfassung, sie kann im Aufgabendialog aktiviert werden. „Verwerfen“ fragt vor dem Verlust ungespeicherter Zeit nach.
 
 Aufgaben werden in einer kompakten Liste angezeigt. Offen/Erledigt/Alle sind direkt erreichbar; weitere kombinierbare Filter lassen sich über „Filter“ einblenden. Auf den Kursseiten wechseln Aufgaben, Planung und Arbeitszeiten über Reiter. Der Menüknopf oben links blendet die Seitenleiste am Desktop vollständig aus und wieder ein; die Auswahl bleibt im Browser gespeichert.
+
+Kalenderkarten am Titel/Griff hineinziehen (Touch: kurz halten). Obere und untere Ziehgriffe ändern Beginn bzw. Ende in 15-Minuten-Schritten. Die Hauptnavigation lässt sich durch eine Wischgeste nach links innerhalb der Seitenleiste schließen, auch per horizontaler Trackpad-Geste.
