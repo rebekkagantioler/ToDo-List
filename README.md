@@ -1,0 +1,68 @@
+# Planraum – Uni- und Privatplaner
+
+React/TypeScript mit Vite, FullCalendar und zwei Speichermöglichkeiten: lokal mit Express/SQLite oder online mit Supabase/PostgreSQL und Anmeldung. Die Anwendung verwendet echte gespeicherte Daten und startet ohne Beispieldaten.
+
+## Lokal starten
+
+Voraussetzung: Node.js ab 22.12 inklusive npm (z. B. der aktuelle Node.js-LTS-Installer von https://nodejs.org). Node wurde für die Entwicklung nur temporär heruntergeladen; damit ist es noch nicht dauerhaft auf dem Mac installiert.
+
+```bash
+npm ci
+npm run dev
+```
+
+Öffne http://localhost:5173. Die API läuft ausschließlich auf dem lokalen Gerät auf Port 3001. `planraum.sqlite` entsteht beim ersten API-Start. `.env` ohne Supabase-Werte bedeutet SQLite-Betrieb.
+
+```bash
+npm run typecheck
+npm test
+npm run build
+```
+
+Für die Vorschau eines Builds: `npm start` für die API und in einem zweiten Terminal `npm run preview`. Der Vite-Preview-Server leitet `/api` ebenfalls an die lokale API weiter.
+
+## Online mit GitHub Pages und Supabase
+
+GitHub Pages stellt das gebaute Frontend bereit. Die Daten werden dann in Supabase gespeichert; SQLite/Express läuft nicht auf GitHub Pages. Supabase ersetzt im Onlinebetrieb das lokale Backend. Der GitHub-Pages-Code ist öffentlich zugänglich; persönliche Datensätze sind durch Anmeldung und Row Level Security getrennt.
+
+1. Erstelle ein kostenloses Supabase-Projekt und führe `supabase/schema.sql` einmal im SQL Editor auf einer neuen Datenbank aus. Das Skript enthält Tabellen, Fremdschlüssel, benutzerspezifische RLS-Regeln und einen transaktionalen Backup-Import. Beim erneuten Ausführen existieren Policies und Trigger bereits; es ist ein initiales Setup, kein Migrationswerkzeug.
+2. Aktiviere E-Mail/Passwort-Anmeldung. Lege die spätere GitHub-Pages-Adresse unter Authentication → URL Configuration als Site URL und erlaubte Redirect URL fest. Erstelle ein Konto in der App und bestätige deine E-Mail, falls aktiviert.
+3. Setze im GitHub-Repository unter Settings → Secrets and variables → Actions → Variables die Repository-Variablen `VITE_SUPABASE_URL` und `VITE_SUPABASE_ANON_KEY` (Supabase-Publishable-Key oder Legacy-anon-Key). Diese Werte sind für den Browser bestimmt. Ein `service_role`- oder Secret-Key gehört niemals in das Frontend.
+4. Wähle unter Settings → Pages als Build-Quelle **GitHub Actions**. Der Workflow `.github/workflows/pages.yml` prüft die Konfiguration, führt die Tests aus, baut das Frontend und veröffentlicht es bei Änderungen an `main`.
+5. Die erwartete Adresse für dieses Repository ist https://rebekkagantioler.github.io/ToDo-List/. Sie ist erst nach erfolgreicher Deployment-Ausführung aktiv.
+
+Um den Supabase-Modus lokal auszuprobieren, kopiere `.env.example` nach `.env`, trage beide Werte ein und starte Vite neu. SQLite-Daten werden nicht automatisch hochgeladen: exportiere zunächst im lokalen Modus JSON und importiere die Sicherung nach Anmeldung im Supabase-Modus. Ein Import ersetzt sämtliche Daten des angemeldeten Kontos. Fehler rollen den Import vollständig zurück.
+
+Es wurde noch kein echtes Supabase-Projekt verbunden und kein Live-Deployment verifiziert. Das SQL-Schema wurde mit einer lokalen PostgreSQL-Engine geprüft, einschließlich RLS zwischen zwei Testbenutzern und fehlerhaftem Import. Die echte Supabase-Auth-/E-Mail-Konfiguration muss mit dem Projekt geprüft werden.
+
+## Implementiert
+
+- Aufgaben und Kurse erstellen, bearbeiten und löschen; Aufgaben abschließen und wieder öffnen.
+- Kombinierbare Filter nach Status, Bereich, Kurs, Aufgabenart und spätestem Deadline-Datum; Sortierung nach Deadline, Priorität, Aufwand, Kurs, Aufgabenart, Status und Titel.
+- Kursdetailseite mit kursbezogenen Aufgaben, geplanten/vergangenen Einheiten, Zeiteinträgen und ECTS-Vergleich.
+- Tages-/Wochenkalender, Aufgaben hineinziehen, Blöcke verschieben und verlängern/verkürzen, anklicken zum Bearbeiten/Löschen und einstellbare sichtbare Uhrzeiten.
+- Aufgaben und Kalenderblöcke sind getrennt: Ein gelöschter Block löscht keine Aufgabe.
+- Timer starten, pausieren, fortsetzen, speichern und verwerfen. Laufzeit und Pausen werden aus persistenten Zeitstempeln berechnet; Seitenwechsel und Neuladen erhalten den Timer. Aktive Timer blockieren weitere Starts in derselben App; Änderungen werden zwischen Browser-Tabs synchronisiert. Supabase-Konten haben getrennte lokale Timerzustände.
+- Manuelle Arbeitszeiten hinzufügen, bearbeiten und löschen.
+- Tatsächliche Arbeitszeit zählt nur aus Zeiteinträgen, niemals zusätzlich aus geplanten Blöcken. ECTS = ECTS × Stunden pro ECTS; der Wert wird als Orientierung dargestellt.
+- Dashboard mit heutigen Aufgaben, Deadlines, kommenden Einheiten und tatsächlich innerhalb der aktuellen Woche erfasster Zeit.
+- Heller/dunkler Modus mit lokaler Speicherung, mobile Navigation und vollständiger JSON-Datenexport/-import einschließlich vorhandener Wiederholungen und Einstellungen.
+
+## Noch offen aus dem vollständigen Auftrag
+
+Dieses Projekt ist ein funktionsfähiges Grundsystem, noch nicht die vollständige Umsetzung aller Anforderungen.
+
+- Wiederkehrende Vorlesungen/Übungen: Tabellen und lokale Anlege-/Lösch-API vorhanden; Oberfläche, Kalenderdarstellung, Ausnahmen, Anwesenheitsbestätigung und automatische, einmalige Zeitverbuchung fehlen. Lehrveranstaltungszeit kann bisher manuell als Zeiteintrag an einer Aufgabe erfasst werden.
+- Semester sind bisher Kursfelder; separate Semesterverwaltung, Semesterfilter und vollständige wöchentliche/Kurs-Zeitverteilung fehlen.
+- ECTS-Auswertung zeigt noch keine eigene Summe zukünftiger Planung; automatische Vorlesungszeiten sind nicht implementiert.
+- Deadline ohne Uhrzeit braucht noch eine eigene Auswahl; derzeit verwendet der Aufgabendialog Datum und Uhrzeit.
+- Timer läuft lokal pro Browser. Ein serverseitiger, geräteübergreifender Timer-Lock und atomare Starts über mehrere Tabs fehlen noch. Pausen werden als Gesamtdauer gespeichert, nicht als einzelne Fokusintervalle; bei sehr langen Timern über Wochenwechsel kann die Wochenzuordnung entsprechend abweichen.
+- Kalender-Uhrzeiten und Design werden bisher browserlokal gespeichert bzw. nur für die aktuelle Kalenderansicht gesetzt; zentrale Kontoeinstellungen fehlen.
+- Tailwind CSS aus dem ursprünglichen Auftrag ist nicht eingerichtet; das vorhandene responsive CSS wurde beibehalten.
+- Browserprüfung von Drag-and-drop, Touch-Bedienung, Responsivität sowie echte Supabase-Anmeldung/Deployment stehen noch aus.
+
+## Tests
+
+`tests/api.test.ts` startet eine echte API mit einer separaten temporären SQLite-Datenbank und prüft deaktivierte Zeiterfassung, null Minuten Aufwand, ungültige Intervalle, Fremdschlüssel, unabhängiges Löschen von Blöcken, vollständigen Backup-Import, Rollback und Löschbeziehungen. Persönliche Daten werden dabei nicht verwendet.
+
+`tests/supabase.test.ts` prüft das SQL-Schema mit PGlite/PostgreSQL: RLS für zwei Benutzer, Verhinderung fremder Kursbeziehungen, atomaren Import und Kurslöschung ohne Verlust der Aufgaben. Supabase-Dienste selbst werden dabei nicht simuliert.
