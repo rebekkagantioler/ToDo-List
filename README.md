@@ -92,3 +92,7 @@ Ein Klick auf einen Kalenderblock wählt ihn aus. Bearbeiten wird ausdrücklich 
 Zeiten ohne Aufgabe: Bei bestehenden Supabase-Projekten einmal `supabase/optional-task-time.sql` im SQL Editor ausführen. Die Migration erhält vorhandene Einträge und ermöglicht direkte Kurs- und Privatzeiten. Lokale SQLite-Datenbanken werden automatisch aktualisiert.
 
 Auf dem iPad: In Safari öffnen → Teilen → Zum Home-Bildschirm → Als Web-App öffnen. Updates in der installierten App über Einstellungen → App aktualisieren laden. Dieser Button lädt mit einer neuen URL ohne den alten HTML-Cache; Anmeldung und laufende Timer werden nicht gelöscht. Der Versionszeitpunkt steht unter dem Button.
+
+Speichern: Während einer laufenden Anfrage zeigt der Dialog „Wird gespeichert …“ und verhindert Mehrfachklicks. Bestätigte Änderungen erscheinen direkt, ohne erneutes Laden aller Tabellen. Bei einem Fehler bleibt der Dialog offen; gestoppte Timer bleiben mit ihrer erfassten Dauer pausiert und können erneut gespeichert werden.
+
+ECTS können mit Komma oder Punkt eingegeben werden (z. B. 2,5). Zahlenfelder lassen sich während der Eingabe vollständig leeren. Beim manuellen Nachtragen kann die Dauer direkt in Minuten angegeben werden; Beginn und Ende werden entsprechend angepasst. Kalenderaufgaben werden je Bereich nach Fälligkeit sortiert, Aufgaben ohne Deadline stehen zuletzt. Jede offene Aufgabe kann wiederholt für separate Arbeitseinheiten geplant werden.

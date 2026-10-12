@@ -13,12 +13,15 @@ test('API: persistence, validation, relationships and complete backup round-trip
  const request=async(path:string,method='GET',body?:unknown)=>fetch(`http://127.0.0.1:${port}/api${path}`,{method,headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
  try {
   let ready=false;for(let i=0;i<100;i++){try{if((await request('/data')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,50))}assert.ok(ready,log);
-  const c=await (await request('/courses','POST',{name:'Mathematik',code:'MA',semester:'WS',ects:6,hours_per_ects:25,color:'#123456',description:''})).json();
+  const c=await (await request('/courses','POST',{name:'Mathematik',code:'MA',semester:'WS',ects:2.5,hours_per_ects:25,color:'#123456',description:''})).json();
   const t=await (await request('/tasks','POST',{title:'Blatt',area:'Universität',type:'Hausaufgabe',course_id:c.id,estimate_minutes:0,tracking:0})).json();
-  let data=await (await request('/data')).json();assert.equal(data.tasks[0].tracking,0);assert.equal(data.tasks[0].estimate_minutes,0);
+  let data=await (await request('/data')).json();assert.equal(data.courses[0].ects,2.5);assert.equal(data.tasks[0].tracking,0);assert.equal(data.tasks[0].estimate_minutes,0);
   assert.equal((await request('/sessions','POST',{task_id:t.id,started_at:'2026-10-11T10:00:00Z',ended_at:'2026-10-11T09:00:00Z'})).status,400);
   assert.equal((await request('/sessions','POST',{task_id:99999,started_at:'2026-10-11T09:00:00Z',ended_at:'2026-10-11T10:00:00Z'})).status,400);
   const b=await (await request('/blocks','POST',{task_id:t.id,course_id:c.id,title:'Plan',starts_at:'2026-10-11T09:00',ends_at:'2026-10-11T10:00'})).json();
+  const second=await (await request('/blocks','POST',{task_id:t.id,course_id:c.id,title:'Plan',starts_at:'2026-10-12T09:00',ends_at:'2026-10-12T09:25'})).json();
+  data=await (await request('/data')).json();assert.equal(data.blocks.length,2);assert.ok(data.blocks.every((block:any)=>block.task_id===t.id));
+  await request(`/blocks/${second.id}`,'DELETE');
   await request(`/blocks/${b.id}`,'DELETE');data=await (await request('/data')).json();assert.equal(data.tasks.length,1);
   await request('/sessions','POST',{task_id:t.id,started_at:'2026-10-11T09:00Z',ended_at:'2026-10-11T10:00Z'});
   assert.equal((await request('/sessions','POST',{course_id:c.id,started_at:'2026-10-11T11:00Z',ended_at:'2026-10-11T13:00Z'})).status,200);

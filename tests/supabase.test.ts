@@ -11,7 +11,7 @@ test('Supabase schema: user isolation, cross-user relationships and atomic impor
   await db.exec(await readFile('supabase/schema.sql','utf8'));
   await db.exec(await readFile('supabase/optional-task-time.sql','utf8'));
   await db.exec(`SET ROLE authenticated;SELECT set_config('request.jwt.claim.sub','${alice}',false);`);
-  await db.exec(`INSERT INTO courses (id,name,semester,ects,hours_per_ects) VALUES (1,'Mathematik','WS',6,25);INSERT INTO tasks (id,title,area,type,course_id) VALUES (2,'Blatt','Universität','Lernen',1);`);
+  await db.exec(`INSERT INTO courses (id,name,semester,ects,hours_per_ects) VALUES (1,'Mathematik','WS',2.5,25);INSERT INTO tasks (id,title,area,type,course_id) VALUES (2,'Blatt','Universität','Lernen',1);`);
   await db.exec(`INSERT INTO work_sessions(id,course_id,started_at,ended_at) VALUES (10,1,'2026-10-12T09:00Z','2026-10-12T11:00Z'); INSERT INTO work_sessions(id,started_at,ended_at) VALUES (11,'2026-10-12T12:00Z','2026-10-12T13:00Z');`);
   await db.exec(`SELECT set_config('request.jwt.claim.sub','${bob}',false);`);
   assert.equal((await db.query('SELECT * FROM courses')).rows.length,0);
@@ -19,7 +19,9 @@ test('Supabase schema: user isolation, cross-user relationships and atomic impor
   await assert.rejects(()=>db.exec(`INSERT INTO work_sessions(course_id,started_at,ended_at) VALUES(1,'2026-10-12T09:00Z','2026-10-12T10:00Z')`));
   await assert.rejects(()=>db.exec(`INSERT INTO tasks(id,title,area,type,course_id) VALUES (3,'Fremd','Universität','Lernen',1)`));
   await db.exec(`INSERT INTO courses (id,name,semester) VALUES (1,'Bobs Kurs','WS');SELECT set_config('request.jwt.claim.sub','${alice}',false);`);
-  const c=(await db.query('SELECT * FROM courses')).rows;const t=(await db.query('SELECT * FROM tasks')).rows;
+  const c=(await db.query('SELECT * FROM courses')).rows;assert.equal((c[0] as any).ects,2.5);
+  await db.exec(`INSERT INTO planned_blocks(task_id,course_id,title,starts_at,ends_at) VALUES(2,1,'Einheit 1','2026-10-12T09:00','2026-10-12T09:25'),(2,1,'Einheit 2','2026-10-13T09:00','2026-10-13T09:25');`);
+  assert.equal((await db.query('SELECT * FROM planned_blocks WHERE task_id=2')).rows.length,2);const t=(await db.query('SELECT * FROM tasks')).rows;
   const backup={courses:c,tasks:t,sessions:(await db.query('SELECT * FROM work_sessions')).rows,blocks:[],recurring:[],settings:[{key:'theme',value:'dark'}]};
   await db.query('SELECT import_backup($1::jsonb)',[JSON.stringify(backup)]);
   assert.equal((await db.query('SELECT * FROM tasks')).rows.length,1);
