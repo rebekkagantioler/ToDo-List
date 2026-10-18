@@ -15,6 +15,7 @@ export async function api(path:string,method='POST',body?:unknown) {
  const [resource,id]=path.slice(1).split('/');const table=tables[resource];if(!table)throw new Error('Unbekannte Datenart');
  const b=(body||{}) as Record<string,any>;const row=Object.fromEntries(columns[resource].filter(k=>b[k]!==undefined).map(k=>[k,b[k]]));
  if(resource==='tasks'){row.tracking=b.tracking?1:0;row.course_id=b.area==='Privat'?null:b.course_id||null;row.deadline=b.deadline||null;row.completed_at=b.status==='Erledigt'?(b.completed_at||new Date().toISOString()):null}
+ if(resource==='settings'&&method==='PUT'){const r=await cloud.from(table).upsert({key:decodeURIComponent(id),value:b.value},{onConflict:'user_id,key'}).select('*').single();if(r.error)throw new Error(r.error.message);return r.data}
  const r=method==='DELETE'?await cloud.from(table).delete().eq('id',id):method==='PUT'?await cloud.from(table).update(row).eq('id',id).select('*').single():await cloud.from(table).insert(row).select('*').single();
  if(r.error){if(resource==='sessions'&&(r.error.message.includes('course_id')||r.error.message.includes('task_id')&&r.error.message.includes('null')))throw new Error('Die Datenbank benötigt das Zeit-Update: supabase/optional-task-time.sql im Supabase SQL Editor ausführen. Die laufende Zeit bleibt erhalten.');throw new Error(r.error.message)}return r.data||{ok:true};
 }

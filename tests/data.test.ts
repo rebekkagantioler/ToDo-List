@@ -52,3 +52,12 @@ test('Confirmed deletions also update dependent records in the visible data',()=
  assert.equal(data.sessions.length,0);
  assert.equal(data.blocks.length,0);
 });
+
+test('Saved lecture exclusions use the setting key and replace existing dates',()=>{
+ let d=applySavedRecord(empty(),'/settings/lecture-exclusions-1','PUT',{value:'["2026-10-12"]'},{key:'lecture-exclusions-1',value:'["2026-10-12"]'});
+ assert.deepEqual(d.settings,[{key:'lecture-exclusions-1',value:'["2026-10-12"]'}]);
+ d=applySavedRecord(d,'/settings/lecture-exclusions-2','PUT',{value:'[]'},{ok:true});
+ d=applySavedRecord(d,'/settings/lecture-exclusions-1','PUT',{value:'[]'},{ok:true});
+ assert.equal(d.settings.length,2);
+ assert.equal(d.settings.find(s=>s.key==='lecture-exclusions-1').value,'[]');
+});

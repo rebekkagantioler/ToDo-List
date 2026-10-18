@@ -18,6 +18,10 @@ export function applySavedRecord(data:AppData, path:string, method:string, body:
  const key=resource as keyof AppData;
  const rows=data[key] as any[];
  if(!Array.isArray(rows))return data;
+ if(resource==='settings'){
+  const setting={key:decodeURIComponent(id),...(body as object),...result};
+  return {...data,settings:[...data.settings.filter(row=>row.key!==setting.key),{key:setting.key,value:setting.value}]};
+ }
  const record={...(body as object),...result,id:id?Number(id):result.id};
  if(resource==='tasks'){
   record.tracking=record.tracking?1:0;

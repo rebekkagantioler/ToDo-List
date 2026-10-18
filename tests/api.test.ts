@@ -28,6 +28,10 @@ test('API: persistence, validation, relationships and complete backup round-trip
   assert.equal((await request('/sessions','POST',{started_at:'2026-10-11T14:00Z',ended_at:'2026-10-11T15:00Z'})).status,200);
   assert.equal((await request('/sessions','POST',{course_id:99999,started_at:'2026-10-11T14:00Z',ended_at:'2026-10-11T15:00Z'})).status,400);
   await request('/recurring','POST',{course_id:c.id,title:'Vorlesung',weekday:1,start_time:'09:00',end_time:'10:00',starts_on:'2026-10-01',ends_on:'2027-02-01',auto_track:1});
+  assert.equal((await request('/settings/lecture-exclusions-1','PUT',{value:'["2026-10-12"]'})).status,200);
+  assert.equal((await request('/settings/lecture-exclusions-1','PUT',{value:'[]'})).status,200);
+  data=await (await request('/data')).json();assert.deepEqual(data.settings,[{key:'lecture-exclusions-1',value:'[]'}]);
+  assert.equal((await request('/settings/lecture-exclusions-1','PUT',{value:[]})).status,400);
   data=await (await request('/data')).json();data.settings=[{key:'theme',value:'dark'}];data.courses[0].created_at='2025-01-01T12:00:00Z';
   assert.equal((await request('/import','POST',data)).status,200);
   assert.deepEqual(await (await request('/data')).json(),data);

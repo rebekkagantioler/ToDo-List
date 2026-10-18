@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Archive, ArrowDownToLine, ArrowUpFromLine, BarChart3, Bell, BookOpen, CalendarDays, Check, ChevronLeft, ChevronRight, Circle, Clock3, Filter, LayoutDashboard, ListTodo, Menu, Moon, MoreHorizontal, Play, Plus, Search, Settings, Sun, TimerReset, Trash2, X } from 'lucide-react';
 import { api, loadData } from './api';
 import { applySavedRecord, byDeadline } from './data';
-import { attendance, courseProgress, dailyMinutes, isLecture } from './statistics';
+import { attendance, courseProgress, dailyMinutes, excludedDates, exclusionKey, isLecture, lastOccurrence, occurrenceDates } from './statistics';
 import type { AppData, Block, Course, Session, Task } from './types';
 
 declare const __APP_BUILD__: string;
@@ -72,7 +72,7 @@ let taskClickCooldown=0;
 function TaskCheck({task,onToggle,disabled=false}:{task:Task;disabled?:boolean;onToggle:(t:Task)=>unknown}){
  const lock=useRef(false);const [busy,setBusy]=useState(false);const [checked,setChecked]=useState(task.status==='Erledigt');
  useEffect(()=>setChecked(task.status==='Erledigt'),[task.status]);
- return <button type="button" className={`check ${checked?'done':''}`} aria-label={`${checked?'Aufgabe wieder öffnen':'Aufgabe abschließen'}: ${task.title}`} aria-pressed={checked} aria-busy={busy} disabled={busy||disabled} onClick={async e=>{e.stopPropagation();if(lock.current||Date.now()<taskClickCooldown)return;taskClickCooldown=Date.now()+650;lock.current=true;setBusy(true);setChecked(!checked);try{await onToggle(task);taskClickCooldown=Date.now()+650}catch{setChecked(task.status==='Erledigt')}finally{lock.current=false;setBusy(false)}}}>{checked&&<Check size={18} strokeWidth={3}/>}</button>
+ return <button type="button" className={`check ${checked?'done':''}`} aria-label={`${checked?'Aufgabe wieder öffnen':'Aufgabe abschließen'}: ${task.title}`} aria-pressed={checked} aria-busy={busy} disabled={busy||disabled} onClick={async e=>{e.stopPropagation();if(lock.current||Date.now()<taskClickCooldown)return;taskClickCooldown=Date.now()+650;lock.current=true;setBusy(true);setChecked(!checked);try{await onToggle(task);taskClickCooldown=Date.now()+650}catch{setChecked(task.status==='Erledigt')}finally{lock.current=false;setBusy(false)}}}>{checked&&<Check size={14} strokeWidth={3}/>}</button>
 }
 function TaskList({tasks,setTimer,timer,onToggle}:{onToggle?:(t:Task)=>void;tasks:Task[];setTimer:(v:any)=>void;timer:any}){return <div className="task-list">{tasks.map(t=><div className="task-row" key={t.id}><TaskCheck task={t} onToggle={t=>onToggle?.(t)}/><div className="task-copy"><strong>{t.title}</strong><span>{t.course_name||t.area} · {t.type}</span></div><Priority p={t.priority}/>{t.tracking===1&&<button className="play-btn" title="Timer starten" disabled={!!timer} onClick={()=>setTimer({taskId:t.id,startedAt:new Date().toISOString()})}>{timer?.taskId===t.id?<span className="playing">●</span>:<Play size={14}/>}</button>}</div>)}</div>}
 
@@ -182,10 +182,45 @@ function CourseProgress({course,data}:{course:Course;data:AppData}){
  return <div className="course-progress"><div className="progress-percentages"><span>Selbststudium <b>{Math.round(p.workPercent)}%</b></span><span>Inkl. Lehrveranstaltungen <b>{Math.round(p.totalPercent)}%</b></span></div><div className="progress stacked-progress" aria-label={`${Math.round(p.totalPercent)} Prozent des ECTS-Richtwerts`}><i style={{width:`${workWidth}%`}}/><i className="lecture-fill" style={{width:`${lectureWidth}%`}}/></div><div className="progress-legend"><span><i/>{fmtMinutes(Math.round(p.work))} Selbststudium</span><span><i className="lecture-fill"/>{fmtMinutes(Math.round(p.lecture))} LV</span></div><small className="muted">Selbststudium: {fmtMinutes(Math.round(p.workTarget))} Ziel · Gesamt: {fmtMinutes(Math.round(p.target))}</small></div>
 }
 function LectureSchedule({course,data,mutate}:{course:Course;data:AppData;mutate:any}){
- const [open,setOpen]=useState(false);
+ const [open,setOpen]=useState(false),[mode,setMode]=useState('weekly'),[limit,setLimit]=useState('count'),[count,setCount]=useState('6');
  const [v,setV]=useState({title:'Lehrveranstaltung',weekday:1,start_time:'09:00',end_time:'10:30',starts_on:todayKey(),ends_on:''});
+ const [savingSeries,setSavingSeries]=useState<number[]>([]);const seriesLocks=useRef(new Set<number>());
  const events=data.recurring.filter(e=>e.course_id===course.id);
- return <details className="lecture-schedule"><summary>Wöchentliche Lehrveranstaltungen · {events.length}</summary><p className="muted">Abgeschlossene Termine werden jede Woche automatisch angerechnet. Selbststudium = ECTS-Gesamtstunden abzüglich geplanter LV-Stunden. Manuell erfasste LV-Zeiten ersetzen überlappende automatische Termine.</p>{events.map(e=><div className="session-row" key={e.id}><div><strong>{e.title}</strong><span>{['So','Mo','Di','Mi','Do','Fr','Sa'][e.weekday]} · {e.start_time}–{e.end_time} · {dateLabel(e.starts_on)} bis {dateLabel(e.ends_on)}{!e.auto_track?' · ohne automatische Anrechnung':''}</span></div><SaveButton className="ghost danger" onClick={()=>mutate(`/recurring/${e.id}`,'DELETE')}>Entfernen</SaveButton></div>)}<button className="secondary" onClick={()=>setOpen(true)}><Plus size={16}/>Lehrveranstaltung hinzufügen</button>{open&&<Modal title="Wöchentliche Lehrveranstaltung" onClose={()=>setOpen(false)}><div className="form-grid"><label className="full">Bezeichnung<input value={v.title} onChange={e=>setV({...v,title:e.target.value})}/></label><label>Wochentag<select value={v.weekday} onChange={e=>setV({...v,weekday:Number(e.target.value)})}>{['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'].map((day,i)=><option key={i} value={i}>{day}</option>)}</select></label><label>Erster möglicher Termin<input type="date" value={v.starts_on} onChange={e=>setV({...v,starts_on:e.target.value})}/></label><label>Beginn<input type="time" value={v.start_time} onChange={e=>setV({...v,start_time:e.target.value})}/></label><label>Ende<input type="time" value={v.end_time} onChange={e=>setV({...v,end_time:e.target.value})}/></label><label className="full">Letzter möglicher Termin<input type="date" value={v.ends_on} onChange={e=>setV({...v,ends_on:e.target.value})}/></label></div><p className="muted">Nur vergangene, vollständig abgeschlossene Termine zählen. Lege bei Semesterferien getrennte Zeiträume an.</p><div className="modal-actions"><button className="secondary" onClick={()=>setOpen(false)}>Abbrechen</button><SaveButton disabled={!v.title.trim()||!v.starts_on||!v.ends_on||v.ends_on<v.starts_on||!v.start_time||v.end_time<=v.start_time} onClick={async()=>{await mutate('/recurring','POST',{...v,course_id:course.id,auto_track:1});setOpen(false)}}>Speichern</SaveButton></div></Modal>}</details>
+ const weekday=mode==='single'?new Date(`${v.starts_on}T00:00`).getDay():v.weekday;
+ const endsOn=mode==='single'?v.starts_on:limit==='count'?lastOccurrence(v.starts_on,weekday,Number(count)):v.ends_on;
+ const dates=occurrenceDates({...v,id:0,course_id:course.id,auto_track:1,weekday,ends_on:endsOn});
+ async function toggleDate(eventId:number,date:string){
+  if(seriesLocks.current.has(eventId))return;
+  seriesLocks.current.add(eventId);setSavingSeries(ids=>[...ids,eventId]);
+  const excluded=excludedDates(data,eventId);
+  try{await mutate(`/settings/${exclusionKey(eventId)}`,'PUT',{value:JSON.stringify(excluded.includes(date)?excluded.filter(d=>d!==date):[...excluded,date])})}
+  finally{seriesLocks.current.delete(eventId);setSavingSeries(ids=>ids.filter(id=>id!==eventId))}
+ }
+ return <details className="lecture-schedule"><summary>Lehrveranstaltungen · {events.length}</summary>
+  <p className="muted">Einzelne Termine oder wöchentliche Serien anlegen. Unter „Termine anzeigen“ kannst du ausgefallene Termine ausschließen oder wieder aufnehmen. Nur abgeschlossene Termine werden angerechnet.</p>
+  {events.map(event=>{
+   const dates=occurrenceDates(event),excluded=excludedDates(data,event.id),active=dates.filter(date=>!excluded.includes(date));
+   return <div className="lecture-series" key={event.id}>
+    <div className="session-row"><div><strong>{event.title}</strong><span>{event.start_time}–{event.end_time} · {active.length} {active.length===1?'Termin':'Termine'}{excluded.length?` · ${dates.length-active.length} ausgefallen`:''}{!event.auto_track?' · ohne automatische Anrechnung':''}</span></div><SaveButton disabled={savingSeries.includes(event.id)} className="ghost danger" onClick={()=>mutate(`/recurring/${event.id}`,'DELETE')}>{dates.length===1?'Termin löschen':'Serie löschen'}</SaveButton></div>
+    <details className="lecture-dates"><summary>Termine anzeigen</summary>{dates.map(date=>{
+     const canceled=excluded.includes(date);
+     return <div className={`lecture-date ${canceled?'canceled':''}`} key={date}><span>{new Date(`${date}T00:00`).toLocaleDateString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'})}{canceled?' · fällt aus':''}</span><SaveButton disabled={savingSeries.includes(event.id)} className={canceled?'text-btn':'ghost danger'} onClick={()=>toggleDate(event.id,date)}>{canceled?'Wieder aufnehmen':'Termin entfällt'}</SaveButton></div>
+    })}{!dates.length&&<p className="muted">Keine Termine im hinterlegten Zeitraum.</p>}</details>
+   </div>
+  })}
+  <button className="secondary" onClick={()=>setOpen(true)}><Plus size={16}/>Lehrveranstaltung hinzufügen</button>
+  {open&&<Modal title="Lehrveranstaltung hinzufügen" onClose={()=>setOpen(false)}><div className="form-grid">
+   <label className="full">Bezeichnung<input value={v.title} onChange={e=>setV({...v,title:e.target.value})}/></label>
+   <label className="full">Wiederholung<select value={mode} onChange={e=>setMode(e.target.value)}><option value="weekly">Wöchentlich</option><option value="single">Einzelner Termin</option></select></label>
+   {mode==='weekly'&&<label>Wochentag<select value={v.weekday} onChange={e=>setV({...v,weekday:Number(e.target.value)})}>{['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'].map((day,i)=><option key={i} value={i}>{day}</option>)}</select></label>}
+   <label>{mode==='single'?'Datum':'Ab Datum'}<input type="date" value={v.starts_on} onChange={e=>setV({...v,starts_on:e.target.value})}/></label>
+   <label>Beginn<input type="time" value={v.start_time} onChange={e=>setV({...v,start_time:e.target.value})}/></label><label>Ende<input type="time" value={v.end_time} onChange={e=>setV({...v,end_time:e.target.value})}/></label>
+   {mode==='weekly'&&<><label>Serie endet nach<select value={limit} onChange={e=>setLimit(e.target.value)}><option value="count">Anzahl der Termine</option><option value="date">Enddatum</option></select></label>{limit==='count'?<label>Anzahl Termine<input type="number" min="1" max="520" step="1" value={count} onChange={e=>setCount(e.target.value)}/></label>:<label>Letzter möglicher Termin<input type="date" value={v.ends_on} onChange={e=>setV({...v,ends_on:e.target.value})}/></label>}</>}
+   </div>
+   <p className="muted lecture-preview">{dates.length?`${dates.length} ${dates.length===1?'Termin':'Termine'}: ${dateLabel(dates[0])}${dates.length>1?` bis ${dateLabel(dates[dates.length-1])}`:''}`:'Bitte einen gültigen Zeitraum wählen.'} · Nur vergangene, vollständig abgeschlossene Termine zählen.</p>
+   <div className="modal-actions"><button className="secondary" onClick={()=>setOpen(false)}>Abbrechen</button><SaveButton disabled={!v.title.trim()||!dates.length||!v.start_time||!v.end_time||v.end_time<=v.start_time} onClick={async()=>{await mutate('/recurring','POST',{...v,weekday,ends_on:endsOn,course_id:course.id,auto_track:1});setOpen(false)}}>Speichern</SaveButton></div>
+  </Modal>}
+ </details>
 }
 function Stats({data}:{data:AppData}){
  const [offset,setOffset]=useState(0);const first=startOfWeek(new Date());first.setDate(first.getDate()+offset*7);

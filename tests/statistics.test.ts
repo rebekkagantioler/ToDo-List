@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { attendance, courseProgress, dailyMinutes } from '../src/statistics';
+import { attendance, courseProgress, dailyMinutes, exclusionKey, lastOccurrence, occurrenceDates } from '../src/statistics';
 import type { AppData, Course } from '../src/types';
 const course:Course={id:1,name:'Mathe',code:'M',semester:'WS',ects:5,hours_per_ects:25,color:'#123456',description:''};
 const data=():AppData=>({courses:[course],tasks:[],blocks:[],settings:[],sessions:[],recurring:[{id:1,course_id:1,title:'Vorlesung',weekday:1,start_time:'09:00',end_time:'10:30',starts_on:'2026-10-05',ends_on:'2026-10-26',auto_track:1}]});
@@ -26,4 +26,28 @@ test('Daily chart splits sessions across local midnight',()=>{
  const sessions=[{id:1,task_id:null,course_id:null,started_at:'2026-10-05T23:30',ended_at:'2026-10-06T01:00',kind:'Selbstlernen',note:''}];
  assert.equal(dailyMinutes(sessions,new Date('2026-10-05T00:00')),30);
  assert.equal(dailyMinutes(sessions,new Date('2026-10-06T00:00')),60);
+});
+
+test('Canceled occurrences are removed from attendance and the planned study target',()=>{
+ const d=data();d.settings=[{key:exclusionKey(1),value:JSON.stringify(['2026-10-12'])}];
+ assert.equal(attendance(d,new Date('2026-10-18T12:00')).length,1);
+ const p=courseProgress(course,d,new Date('2026-10-18T12:00'));
+ assert.equal(p.lecture,90);assert.equal(p.workTarget,7500-270);
+ d.settings=[];
+ assert.equal(attendance(d,new Date('2026-10-18T12:00')).length,2);
+});
+test('A series can contain exactly six dates even if the start is not the selected weekday',()=>{
+ const event={...data().recurring[0],starts_on:'2026-10-06',ends_on:lastOccurrence('2026-10-06',1,6)};
+ const dates=occurrenceDates(event);
+ assert.equal(dates.length,6);assert.equal(dates[0],'2026-10-12');assert.equal(dates[5],'2026-11-16');
+ assert.equal(lastOccurrence('2026-10-06',1,0),'');assert.equal(lastOccurrence('2026-10-06',1,1.5),'');
+});
+test('A single date accrues once and ignores unrelated exclusions',()=>{
+ const d=data();d.recurring[0]={...d.recurring[0],weekday:2,starts_on:'2026-10-06',ends_on:'2026-10-06'};
+ d.settings=[{key:exclusionKey(2),value:'["2026-10-06"]'}];
+ assert.equal(occurrenceDates(d.recurring[0]).length,1);
+ assert.equal(attendance(d,new Date('2026-10-05T12:00')).length,0);
+ assert.equal(attendance(d,new Date('2026-12-01T12:00')).length,1);
+ d.settings.push({key:exclusionKey(1),value:'["2026-10-06"]'});
+ assert.equal(courseProgress(course,d,new Date('2026-12-01T12:00')).lecture,0);
 });
