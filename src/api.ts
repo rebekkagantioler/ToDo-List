@@ -1,6 +1,7 @@
 import type { AppData } from './types';
 import { cloud } from './cloud';
 import { enrichData } from './data';
+import { catalogEntries, type CourseCatalogEntry } from './catalog';
 import { homeworkPlan } from './homework';
 const tables:Record<string,string>={courses:'courses',tasks:'tasks',sessions:'work_sessions',blocks:'planned_blocks',recurring:'recurring_events',settings:'settings'};
 const columns:Record<string,string[]>={courses:['name','code','semester','ects','hours_per_ects','color','description'],tasks:['title','description','area','type','course_id','deadline','estimate_minutes','priority','status','tracking','completed_at'],sessions:['task_id','course_id','started_at','ended_at','kind','note'],blocks:['task_id','course_id','title','starts_at','ends_at','kind'],recurring:['course_id','title','weekday','start_time','end_time','starts_on','ends_on','auto_track'],settings:['key','value']};
@@ -39,4 +40,11 @@ export async function api(path:string,method='POST',body?:unknown):Promise<any>{
    await new Promise(resolve=>setTimeout(resolve,400*(attempt+1)));
   }
  }
+}
+
+export async function loadCourseCatalog():Promise<CourseCatalogEntry[]>{
+ if(!cloud)return catalogEntries(await readData());
+ const {data,error}=await cloud.rpc('list_course_catalog');
+ if(error)throw new Error('Der Kurskatalog ist noch nicht eingerichtet. Bitte die aktuelle Datei supabase/course-templates.sql in Supabase ausführen.');
+ return (data||[]) as CourseCatalogEntry[];
 }

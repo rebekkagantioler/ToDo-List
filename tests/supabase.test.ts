@@ -19,11 +19,15 @@ test('Supabase schema: user isolation, cross-user relationships and atomic impor
   assert.equal((await db.query('SELECT * FROM work_sessions')).rows.length,0);
   await assert.rejects(()=>db.exec(`INSERT INTO work_sessions(course_id,started_at,ended_at) VALUES(1,'2026-10-12T09:00Z','2026-10-12T10:00Z')`));
   await assert.rejects(()=>db.exec(`INSERT INTO tasks(id,title,area,type,course_id) VALUES (3,'Fremd','Universität','Lernen',1)`));
-  await db.exec(`SELECT set_config('request.jwt.claim.sub','${alice}',false);INSERT INTO course_templates(source_course_id,name,payload) VALUES(1,'Mathematik','{"course":{"name":"Mathematik","semester":"WS","ects":2.5,"hours_per_ects":25},"events":[{"title":"UE","weekday":1,"start_time":"10:00","end_time":"11:00","starts_on":"2026-10-19","ends_on":"2026-11-02","auto_track":1,"excluded":["2026-10-26"]}]}');SELECT set_config('request.jwt.claim.sub','${bob}',false);`);
-  const shared:any=(await db.query('SELECT * FROM course_templates')).rows[0];assert.equal(shared.name,'Mathematik');
-  await db.exec(`UPDATE course_templates SET name='Changed' WHERE id=${shared.id};DELETE FROM course_templates WHERE id=${shared.id}`);
-  assert.equal((await db.query('SELECT name FROM course_templates')).rows[0].name,'Mathematik');
+  const catalog=await db.query('SELECT * FROM list_course_catalog()');assert.equal(catalog.rows.length,1);
+  const entry:any=catalog.rows[0];assert.equal(entry.name,'Mathematik');assert.equal(entry.payload.course.description,'');assert.equal(entry.payload.course.ects,2.5);assert.equal(entry.payload.events.length,0);assert.ok(!JSON.stringify(entry).includes(alice));
+  await db.exec(`SELECT set_config('request.jwt.claim.sub','${alice}',false);UPDATE courses SET description='PRIVATE NOTES' WHERE id=1;INSERT INTO recurring_events(id,course_id,title,weekday,start_time,end_time,starts_on,ends_on) VALUES(42,1,'UE',1,'10:00','11:00','2026-10-19','2026-11-02');INSERT INTO settings(key,value) VALUES('lecture-exclusions-42','["2026-10-26"]'),('private-setting','PRIVATE NOTES');SELECT set_config('request.jwt.claim.sub','${bob}',false);`);
+  const updated:any=(await db.query('SELECT * FROM list_course_catalog()')).rows[0];assert.deepEqual(updated.payload.events[0].excluded,['2026-10-26']);assert.ok(!JSON.stringify(updated).includes('PRIVATE NOTES'));assert.equal(updated.payload.events[0].id,undefined);assert.equal(updated.payload.events[0].user_id,undefined);
+  await assert.rejects(()=>db.query("SELECT catalog_exclusions('[]')"));
+  await assert.rejects(()=>db.query('SELECT * FROM course_templates'));
+  const shared=updated;
   await db.query('SELECT copy_course_template($1::jsonb)',[JSON.stringify(shared.payload)]);
+  assert.equal((await db.query('SELECT * FROM list_course_catalog()')).rows.length,1); // Identical copies collapse into one entry.
   assert.equal((await db.query('SELECT * FROM tasks')).rows.length,0);
   assert.equal((await db.query('SELECT * FROM recurring_events')).rows.length,1);
   assert.equal((await db.query('SELECT value FROM settings')).rows[0].value,'["2026-10-26"]');
