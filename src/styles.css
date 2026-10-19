@@ -64,10 +64,12 @@ html,body,#root{height:100%;overflow:hidden}.app{height:100vh;height:100dvh;min-
 /* Verbundene Registerkarten auf der Kursdetailseite. */
 .course-detail{max-width:1100px;margin-inline:auto}
 .course-detail>.page-heading{margin-bottom:26px}
-.course-register{--register-line:color-mix(in srgb,var(--ink) 13%,var(--panel));--register-active:var(--panel)}
+.course-register{--register-accent:var(--teal);--register-line:color-mix(in srgb,var(--teal) 25%,var(--panel));--register-active:color-mix(in srgb,var(--teal) 7%,var(--panel));--register-idle:color-mix(in srgb,var(--teal) 2%,var(--panel));--soft:color-mix(in srgb,var(--teal) 3%,var(--panel))}
+html[data-theme=dark] .course-register{--register-accent:#91d4bc;--register-line:color-mix(in srgb,#91d4bc 25%,var(--panel));--register-active:color-mix(in srgb,#91d4bc 9%,var(--panel));--register-idle:color-mix(in srgb,#91d4bc 3%,var(--panel))}
 .course-register-tabs{position:relative;z-index:1;display:flex;align-items:stretch;gap:5px;padding:0;margin:0;overflow-x:auto;scrollbar-width:thin}
-.course-register-tabs>button{flex:0 0 auto;padding:15px 24px;border:1px solid var(--register-line);border-bottom:0;border-radius:12px 12px 0 0;background:var(--soft);color:var(--muted);font-size:13px;font-weight:500;position:relative;white-space:nowrap}
-.course-register-tabs>button[aria-selected=true]{background:var(--register-active);color:var(--ink);font-weight:700;box-shadow:inset 0 3px 0 color-mix(in srgb,var(--ink) 60%,transparent)}
+.course-register-tabs>button{flex:0 0 auto;padding:15px 24px;border:1px solid var(--register-line);border-bottom:0;border-radius:12px 12px 0 0;background:var(--register-idle);color:var(--muted);font-size:13px;font-weight:500;position:relative;white-space:nowrap;transition:background .15s,color .15s}
+.course-register-tabs>button:hover{color:var(--register-accent);background:var(--register-active)}
+.course-register-tabs>button[aria-selected=true]{background:var(--register-active);color:var(--register-accent);font-weight:700;box-shadow:inset 0 3px 0 var(--register-accent)}
 .course-register-tabs>button[aria-selected=true]::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--register-active)}
 .course-register-tabs>button:focus-visible{outline:2px solid var(--teal);outline-offset:-5px}
 .course-register-panel{border:1px solid var(--register-line);border-radius:0 14px 14px 14px;padding:28px;min-height:360px;background:var(--register-active);position:relative;margin-top:-1px}
