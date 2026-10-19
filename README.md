@@ -67,11 +67,19 @@ Dieses Projekt ist ein funktionsfähiges Grundsystem, noch nicht die vollständi
 
 `tests/supabase.test.ts` prüft das SQL-Schema mit PGlite/PostgreSQL: RLS für zwei Benutzer, Verhinderung fremder Kursbeziehungen, atomaren Import und Kurslöschung ohne Verlust der Aufgaben. Supabase-Dienste selbst werden dabei nicht simuliert.
 
-## Persönliches Konto
+## Anmeldung, Registrierung und geteilte Kurse
 
-Die Anmeldung verwendet Benutzername und Passwort; die Registrierung in der App ist entfernt. `VITE_LOGIN_USERNAME` und `VITE_LOGIN_EMAIL` ordnen den Namen einem bestehenden Supabase-Konto zu. Beide Werte müssen lokal in `.env` und für GitHub Pages als Repository-Variablen gesetzt werden. Das Passwort wird ausschließlich an Supabase Auth gesendet. Alle VITE-Werte einschließlich der Kontoadresse sind im ausgelieferten Browser-Code sichtbar; sie sind keine Geheimnisse.
+Die App unterstützt E-Mail/Passwort-Anmeldung und Registrierung. Aktiviere in Supabase Authentication → Providers „Allow new users to sign up“ und konfiguriere die Website als Site URL/Redirect URL. Je nach Projekteinstellung ist eine E-Mail-Bestätigung erforderlich. Die optionalen Variablen `VITE_LOGIN_USERNAME` und `VITE_LOGIN_EMAIL` erhalten die bisherige Anmeldung mit persönlichem Benutzernamen; neue Konten verwenden ihre E-Mail-Adresse.
 
-Nach Einrichtung des Kontos unter Supabase Authentication → Sign In / Providers „Allow new users to sign up“ deaktivieren, damit auch über die API keine weiteren Registrierungen möglich sind. Das Entfernen des Registrierungsbuttons allein setzt diese Projekteinstellung nicht. Die Benutzertrennung bleibt über RLS erhalten. Ein bereits unbestätigtes Konto muss weiterhin einmal bestätigt werden; die App umgeht diese serverseitige Regel nicht.
+Führe auf bestehenden Projekten zusätzlich `supabase/course-templates.sql` aus. Unter Kursdetails → „Kurs als Vorlage teilen“ lassen sich Kursdaten und Termine einschließlich Ausfällen bewusst für angemeldete Nutzer freigeben. Neue Nutzer wählen unter „Kurs anlegen“ → „Vorlage übernehmen“ einen Kurs. Die Übernahme ist transaktional und erstellt eine unabhängige Kopie ohne Aufgaben oder Arbeitszeiten. Eine Freigabe lässt sich wieder beenden; vorhandene Kopien bleiben erhalten. Lokal können Vorlagencodes kopiert und übernommen werden.
+
+## Hausaufgaben und Meldungen
+
+Neue Hausaufgaben erhalten als veränderbare Deadline den Beginn der nächsten nicht ausgefallenen Kurseinheit. Unter Kursdetails → „Wöchentliche Hausaufgaben“ kann eine Vorlage an eine konkrete Terminserie gebunden werden. Jede Aufgabe erscheint sieben Kalendertage vor der zugehörigen Einheit. Die App ergänzt beim Laden und während geöffneter Nutzung jede Minute die fälligen Aufgaben; bei geschlossener App entstehen sie beim nächsten Öffnen. Stabile IDs verhindern doppelte Blätter, auch bei parallelen Browser-Tabs. Die Vorlagen werden in den vorhandenen Kontoeinstellungen gespeichert und sind im Backup enthalten.
+
+Ein gelöschtes Blatt bleibt für diese Serie gelöscht. „Serie beenden“ verhindert weitere Aufgaben und erhält bestehende. Ausgefallene Einheiten entfernen zugehörige offene Blätter ohne gespeicherte Arbeitszeit; erledigte Blätter und bereits erfasste Arbeit bleiben erhalten. Wird ein Termin wieder aufgenommen, erscheint sein Blatt wieder, sofern es nicht ausdrücklich gelöscht oder die Serie beendet wurde.
+
+Cloud-Speicheraufrufe wiederholen vorübergehende Netzwerkfehler bis zu zweimal mit derselben Datensatz-ID. Fehlermeldungen und Hinweise verschwinden nach sieben Sekunden; ein neuer Speicherversuch entfernt vorherige Hinweise sofort. Die Kursbalken verwenden Indigo für Selbststudium und Mint für Lehrveranstaltungen.
 
 ## Kalender und Zeit erfassen
 

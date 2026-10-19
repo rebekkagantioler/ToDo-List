@@ -38,6 +38,15 @@ test('API: persistence, validation, relationships and complete backup round-trip
   assert.equal((await request('/import','POST',{})).status,400);
   const bad=structuredClone(data);bad.sessions[0].task_id=999999;
   assert.equal((await request('/import','POST',bad)).status,400);assert.deepEqual(await (await request('/data')).json(),data);
+  const payload={course:{name:'Geteilter Kurs',semester:'WS',ects:3,hours_per_ects:25},events:[{title:'UE',weekday:1,start_time:'10:00',end_time:'11:00',starts_on:'2026-10-19',ends_on:'2026-11-02',excluded:['2026-10-26']}]};
+  const copied=await (await request('/course-copy','POST',payload)).json();
+  let shared=await (await request('/data')).json();assert.equal(shared.courses.length,2);assert.equal(shared.tasks.length,1);assert.equal(shared.courses.find((v:any)=>v.id===copied.id).ects,3);
+  const copiedEvent=shared.recurring.find((v:any)=>v.course_id===copied.id);assert.equal(shared.settings.find((v:any)=>v.key===`lecture-exclusions-${copiedEvent.id}`).value,'["2026-10-26"]');
+  const invalidCopy=structuredClone(payload);invalidCopy.events[0].weekday=9;assert.equal((await request('/course-copy','POST',invalidCopy)).status,400);assert.equal((await (await request('/data')).json()).courses.length,2);
+  await request(`/courses/${copied.id}`,'DELETE');
+  const generated={id:7000000000000001,title:'Wöchentlich',area:'Universität',type:'Hausaufgabe',course_id:c.id,estimate_minutes:60};
+  await request('/tasks','POST',generated);await request('/tasks','POST',generated);
+  shared=await (await request('/data')).json();assert.equal(shared.tasks.filter((v:any)=>v.id===generated.id).length,1);await request(`/tasks/${generated.id}`,'DELETE');
   await request(`/courses/${c.id}`,'DELETE');data=await (await request('/data')).json();assert.equal(data.tasks[0].course_id,null);assert.equal(data.recurring.length,0);
   await request(`/tasks/${t.id}`,'DELETE');data=await (await request('/data')).json();assert.equal(data.sessions.length,2);assert.ok(data.sessions.every((s:any)=>s.course_id===null&&s.task_id===null));
  } finally {child.kill();await new Promise<void>(resolve=>{if(child.exitCode!==null)resolve();else child.once('exit',()=>resolve())});await rm(dir,{recursive:true,force:true})}

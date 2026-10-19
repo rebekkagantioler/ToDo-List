@@ -10,6 +10,7 @@ test('Supabase schema: user isolation, cross-user relationships and atomic impor
   await db.exec(`CREATE ROLE authenticated;CREATE SCHEMA auth;CREATE TABLE auth.users(id uuid PRIMARY KEY);CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;GRANT USAGE ON SCHEMA auth TO authenticated;INSERT INTO auth.users VALUES ('${alice}'),('${bob}');`);
   await db.exec(await readFile('supabase/schema.sql','utf8'));
   await db.exec(await readFile('supabase/optional-task-time.sql','utf8'));
+  await db.exec(await readFile('supabase/course-templates.sql','utf8'));
   await db.exec(`SET ROLE authenticated;SELECT set_config('request.jwt.claim.sub','${alice}',false);`);
   await db.exec(`INSERT INTO courses (id,name,semester,ects,hours_per_ects) VALUES (1,'Mathematik','WS',2.5,25);INSERT INTO tasks (id,title,area,type,course_id) VALUES (2,'Blatt','Universität','Lernen',1);`);
   await db.exec(`INSERT INTO work_sessions(id,course_id,started_at,ended_at) VALUES (10,1,'2026-10-12T09:00Z','2026-10-12T11:00Z'); INSERT INTO work_sessions(id,started_at,ended_at) VALUES (11,'2026-10-12T12:00Z','2026-10-12T13:00Z');`);
@@ -18,6 +19,18 @@ test('Supabase schema: user isolation, cross-user relationships and atomic impor
   assert.equal((await db.query('SELECT * FROM work_sessions')).rows.length,0);
   await assert.rejects(()=>db.exec(`INSERT INTO work_sessions(course_id,started_at,ended_at) VALUES(1,'2026-10-12T09:00Z','2026-10-12T10:00Z')`));
   await assert.rejects(()=>db.exec(`INSERT INTO tasks(id,title,area,type,course_id) VALUES (3,'Fremd','Universität','Lernen',1)`));
+  await db.exec(`SELECT set_config('request.jwt.claim.sub','${alice}',false);INSERT INTO course_templates(source_course_id,name,payload) VALUES(1,'Mathematik','{"course":{"name":"Mathematik","semester":"WS","ects":2.5,"hours_per_ects":25},"events":[{"title":"UE","weekday":1,"start_time":"10:00","end_time":"11:00","starts_on":"2026-10-19","ends_on":"2026-11-02","auto_track":1,"excluded":["2026-10-26"]}]}');SELECT set_config('request.jwt.claim.sub','${bob}',false);`);
+  const shared:any=(await db.query('SELECT * FROM course_templates')).rows[0];assert.equal(shared.name,'Mathematik');
+  await db.exec(`UPDATE course_templates SET name='Changed' WHERE id=${shared.id};DELETE FROM course_templates WHERE id=${shared.id}`);
+  assert.equal((await db.query('SELECT name FROM course_templates')).rows[0].name,'Mathematik');
+  await db.query('SELECT copy_course_template($1::jsonb)',[JSON.stringify(shared.payload)]);
+  assert.equal((await db.query('SELECT * FROM tasks')).rows.length,0);
+  assert.equal((await db.query('SELECT * FROM recurring_events')).rows.length,1);
+  assert.equal((await db.query('SELECT value FROM settings')).rows[0].value,'["2026-10-26"]');
+  const invalidTemplate=structuredClone(shared.payload);invalidTemplate.events[0].weekday=9;
+  await assert.rejects(()=>db.query('SELECT copy_course_template($1::jsonb)',[JSON.stringify(invalidTemplate)]));
+  assert.equal((await db.query('SELECT * FROM courses')).rows.length,1);
+  await db.exec('DELETE FROM courses');
   await db.exec(`INSERT INTO courses (id,name,semester) VALUES (1,'Bobs Kurs','WS');SELECT set_config('request.jwt.claim.sub','${alice}',false);`);
   const c=(await db.query('SELECT * FROM courses')).rows;assert.equal((c[0] as any).ects,2.5);
   await db.exec(`INSERT INTO planned_blocks(task_id,course_id,title,starts_at,ends_at) VALUES(2,1,'Einheit 1','2026-10-12T09:00','2026-10-12T09:25'),(2,1,'Einheit 2','2026-10-13T09:00','2026-10-13T09:25');`);
