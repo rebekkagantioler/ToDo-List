@@ -14,6 +14,7 @@ async function readData(): Promise<AppData> {
 export async function loadData():Promise<AppData>{
  const data=await readData();const plan=homeworkPlan(data);
  for(const task of plan.create){const saved=await api('/tasks','POST',task);data.tasks.push({...task,...saved});}
+ for(const task of plan.update){await api(`/tasks/${task.id}`,'PUT',task);data.tasks=data.tasks.map(t=>t.id===task.id?task:t);}
  for(const task of plan.remove){await api(`/tasks/${task.id}`,'DELETE');data.tasks=data.tasks.filter(t=>t.id!==task.id);data.blocks=data.blocks.filter(b=>b.task_id!==task.id);}
  return enrichData(data);
 }
