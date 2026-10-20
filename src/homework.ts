@@ -13,6 +13,10 @@ export function homeworkDates(data:AppData,series:HomeworkSeries){
  const excluded=new Set(excludedDates(data,event.id));
  return occurrenceDates(event).filter(date=>date>=series.starts_on&&!excluded.has(date));
 }
+export function nextHomeworkDate(data:AppData,series:HomeworkSeries,now=new Date()){
+ const event=data.recurring.find(e=>e.id===series.event_id);if(!event)return '';
+ return homeworkDates(data,series).find(date=>!series.skipped.includes(date)&&new Date(`${date}T${event.start_time}`)>=now)||'';
+}
 export function homeworkTitle(data:AppData,series:HomeworkSeries,date:string){
  const numbering=series.numbering;
  if(!numbering||date<numbering.from)return series.task.title;
@@ -46,7 +50,7 @@ export function homeworkPlan(data:AppData,now=new Date()){
  const create:Task[]=[],remove:Task[]=[],update:Task[]=[];
  for(const series of homeworkSeries(data)){
   const event=data.recurring.find(e=>e.id===series.event_id);if(!event)continue;
-  const excluded=excludedDates(data,event.id);
+  const excluded=excludedDates(data,event.id),nextDate=nextHomeworkDate(data,series,now);
   for(const date of occurrenceDates(event)){
    if(date<series.starts_on)continue;
    const id=homeworkId(series.id,date),existing=data.tasks.find(t=>t.id===id);
@@ -55,7 +59,7 @@ export function homeworkPlan(data:AppData,now=new Date()){
    if(existing&&(skipped||series.deleted)&&existing.status!=='Erledigt'&&!data.sessions.some(s=>s.task_id===id))remove.push(existing);
    const rename=series.title_updates?.[String(id)];
    if(existing&&!skipped&&!series.deleted&&existing.status!=='Erledigt'&&rename&&existing.title===rename.from&&existing.title!==rename.to)update.push({...existing,title:rename.to});
-   if(!existing&&!series.stopped&&!series.deleted&&!skipped&&release<=now)create.push({...series.task,title:homeworkTitle(data,series,date),id,deadline,created_at:now.toISOString(),completed_at:null});
+   if(!existing&&!series.stopped&&!series.deleted&&!skipped&&(release<=now||date===nextDate))create.push({...series.task,title:homeworkTitle(data,series,date),id,deadline,created_at:now.toISOString(),completed_at:null});
   }
  }
  return {create,remove,update};

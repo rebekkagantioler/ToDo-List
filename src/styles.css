@@ -182,3 +182,16 @@ html[data-theme=dark] .course-register{--register-accent:#91d4bc;--register-line
 .homework-preview{padding:14px 16px;border-radius:10px;background:var(--soft);border:1px solid var(--line);margin:18px 0 14px;font-size:12px;line-height:1.6}
 .homework-preview strong{font-weight:600;color:var(--teal)}
 .homework-preview p{margin:5px 0 0;font-size:12px;color:var(--muted)}
+
+.quiet-tasks .day-task-list{border:0;background:transparent;border-radius:0;overflow:visible}
+.task-day-group+.task-day-group{margin-top:28px}
+.task-day-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 0;margin-bottom:4px;border-bottom:1px solid var(--line)}
+.task-day-heading>div{display:flex;align-items:center;gap:9px}
+.task-day-heading h3{font-size:14px;line-height:1.5;font-weight:600;margin:0;letter-spacing:-.2px}
+.task-day-heading>div>span{font-size:10px;color:var(--muted);min-width:20px;padding:2px 6px;background:var(--soft);border-radius:5px;text-align:center}
+.task-day-heading>small{font-size:11px;color:var(--muted);text-align:right}
+.task-day-group.overdue .task-day-heading h3{color:#b75e4e}
+.task-day-group.today .task-day-heading h3{color:var(--teal)}
+.task-day-group .quiet-task-row:last-child{border-bottom:0}
+.course-register-panel .day-task-list{border:0}
+@media(max-width:640px){.task-day-heading{gap:8px;align-items:baseline}.task-day-heading h3{font-size:13px}.task-day-heading>small{font-size:10px}.task-day-group+.task-day-group{margin-top:22px}}

@@ -35,3 +35,17 @@ test('Late cancellation does not reuse an already released sheet number',()=>{
  d.settings.push({key:'lecture-exclusions-1',value:'["2026-10-19"]'});
  assert.deepEqual(homeworkPlan(d,new Date('2026-11-09T10:00')).create.map(t=>t.title),['Blatt 6','Blatt 7','Blatt 8']);
 });
+test('Next sheet appears immediately even if its deadline is several weeks away',()=>{
+ const d=fixture();d.recurring[0].starts_on='2026-11-09';d.recurring[0].ends_on='2026-11-23';
+ d.settings[0].value=JSON.stringify({...series,starts_on:'2026-11-09',numbering:{start:4,from:'2026-11-09'}});
+ const now=new Date('2026-10-20T10:00'),plan=homeworkPlan(d,now);
+ assert.deepEqual(plan.create.map(t=>({title:t.title,deadline:t.deadline})),[{title:'Blatt 4',deadline:'2026-11-09T10:00'}]);
+ d.tasks=plan.create;assert.equal(homeworkPlan(d,now).create.length,0);
+});
+test('Immediate next sheet respects cancellations, explicitly deleted sheets and stopped series',()=>{
+ const d=fixture();d.recurring[0].starts_on='2026-11-09';d.recurring[0].ends_on='2026-11-23';d.settings[0].value=JSON.stringify({...series,starts_on:'2026-11-09'});
+ d.settings.push({key:'lecture-exclusions-1',value:'["2026-11-09"]'});
+ assert.deepEqual(homeworkPlan(d,new Date('2026-10-20T10:00')).create.map(t=>t.deadline),['2026-11-16T10:00']);
+ d.settings[0].value=JSON.stringify({...series,starts_on:'2026-11-09',skipped:['2026-11-16']});assert.deepEqual(homeworkPlan(d,new Date('2026-10-20T10:00')).create.map(t=>t.deadline),['2026-11-23T10:00']);
+ d.settings[0].value=JSON.stringify({...series,starts_on:'2026-11-09',stopped:true});assert.equal(homeworkPlan(d,new Date('2026-10-20T10:00')).create.length,0);
+});
