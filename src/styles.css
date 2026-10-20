@@ -254,3 +254,44 @@ html[data-theme=dark] .week-current .task-week-heading :is(h2,h3),html[data-them
 
 .task-course-context{display:flex;align-items:center;gap:8px;margin:0 0 20px;color:var(--teal);font-size:13px;line-height:1.5}
 .task-course-context svg{flex-shrink:0}
+
+/* Aufgaben im Kurs: eine flache Liste innerhalb des Registers. */
+.course-register:has(.quiet-tasks.compact){--register-active:var(--panel)}
+.course-register-panel:has(.quiet-tasks.compact){min-height:240px;padding:24px 28px}
+.course-task-toolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding-bottom:22px;margin-bottom:22px;border-bottom:1px solid var(--line)}
+.course-task-status{display:flex;align-items:center;position:relative;min-width:0}
+.course-task-status select{appearance:none;-webkit-appearance:none;background:transparent;border:0;border-radius:6px;color:var(--ink);font-size:15px;font-weight:600;padding:8px 25px 8px 0;max-width:100%}
+.course-task-status>svg{position:absolute;right:2px;pointer-events:none;color:var(--muted)}
+.course-task-tools{display:flex;align-items:center;gap:8px}
+.course-task-tools .primary{font-size:12px;padding:9px 12px}
+.course-task-search{flex-basis:100%;max-width:none!important;background:var(--soft);border-radius:9px;border:1px solid var(--line)}
+.course-task-search input{min-width:0}
+.course-task-search .icon-btn{margin-right:-6px}
+.quiet-tasks.compact .task-week-body{padding:0;border:0;background:transparent;border-radius:0;box-shadow:none}
+.quiet-tasks.compact .task-week-heading{margin:0 0 8px;align-items:center}
+.quiet-tasks.compact .task-week-heading :is(h2,h3){font-size:19px;letter-spacing:-.4px;line-height:1.4}
+.quiet-tasks.compact .week-current .task-week-heading :is(h2,h3){font-size:21px}
+.quiet-tasks.compact .task-week-heading>small,.quiet-tasks.compact .task-week-heading>div>span{display:none}
+.quiet-tasks.compact .task-week-group+.task-week-group{margin-top:26px}
+.quiet-tasks.compact .task-day-group+.task-day-group{margin:0;padding:0;border:0}
+.quiet-tasks.compact .task-day-group+.task-day-group .quiet-task-row:first-child{border-top:1px solid var(--line)}
+.quiet-tasks.compact .quiet-task-row{padding:14px 0;gap:13px}
+.quiet-tasks.compact .quiet-task-copy strong{font-size:14px}
+.quiet-tasks.compact .quiet-task-copy span{display:block;font-size:11px;line-height:1.7;margin-top:4px}
+.quiet-tasks.compact .quiet-task-actions{margin-left:auto}
+@media(max-width:640px){
+ .course-register-panel:has(.quiet-tasks.compact){padding:20px 16px}
+ .course-task-toolbar{gap:10px;padding-bottom:17px;margin-bottom:20px}
+ .course-task-status{flex:1;min-width:125px;max-width:190px}
+ .course-task-status select{font-size:13px}
+ .course-task-tools{gap:3px}
+ .course-task-tools .primary{font-size:11px;padding:9px}
+ .course-task-tools .icon-btn{padding:6px}
+ .quiet-tasks.compact .task-week-heading :is(h2,h3){font-size:18px}
+ .quiet-tasks.compact .week-current .task-week-heading :is(h2,h3){font-size:20px}
+ .quiet-tasks.compact .quiet-task-row{display:flex;flex-wrap:nowrap;gap:10px}
+ .quiet-tasks.compact .quiet-task-copy{flex:1;min-width:0}
+ .quiet-tasks.compact .quiet-task-copy strong{font-size:13px}
+ .quiet-tasks.compact .quiet-task-copy span{font-size:10px}
+ .quiet-tasks.compact .quiet-task-actions{flex-shrink:0}
+}
