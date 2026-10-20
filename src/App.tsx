@@ -106,6 +106,19 @@ function Modal({title,onClose,children}:{title:string;onClose:()=>void;children:
 function Calendar({data,mutate,timer,setTimer}:{data:AppData;mutate:any;timer:any;setTimer:any}){
  const [open,setOpen]=useState(false),[editing,setEditing]=useState<Block|null>(null),[startHour,setStartHour]=useState('07:00'),[endHour,setEndHour]=useState('22:00');const dragRef=useRef<HTMLDivElement>(null);const [query,setQuery]=useState('');const [area,setArea]=useState('Alle');const [newTask,setNewTask]=useState(false);const [backlogHidden,setBacklogHidden]=useState(()=>localStorage.getItem('planraum-backlog')==='hidden');const [large,setLarge]=useState(false);const calendarRef=useRef<FullCalendar>(null);const calendarBox=useRef<HTMLDivElement>(null);const interactionUntil=useRef(0);
 
+ const deletingBlock=useRef(false);
+ useEffect(()=>{
+  if(!open||!editing?.id)return;
+  const remove=(e:KeyboardEvent)=>{
+   if(!['Delete','Backspace'].includes(e.key)||e.repeat||e.ctrlKey||e.metaKey||e.altKey||e.shiftKey||e.isComposing)return;
+   const target=e.target;
+   if(target instanceof HTMLElement&&(target.closest('input,textarea,select')||target.isContentEditable))return;
+   e.preventDefault();if(deletingBlock.current)return;
+   deletingBlock.current=true;
+   void mutate(`/blocks/${editing.id}`,'DELETE').then(()=>setOpen(false)).catch(()=>{}).finally(()=>{deletingBlock.current=false});
+  };
+  window.addEventListener('keydown',remove);return()=>window.removeEventListener('keydown',remove);
+ },[open,editing,mutate]);
  const cancelGesture=useRef<(()=>void)|null>(null);
  useEffect(()=>()=>cancelGesture.current?.(),[]);
  function holdBlock(e:React.PointerEvent){
