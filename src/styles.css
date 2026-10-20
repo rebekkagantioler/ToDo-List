@@ -197,16 +197,51 @@ html[data-theme=dark] .course-register{--register-accent:#91d4bc;--register-line
 @media(max-width:640px){.task-day-heading{gap:8px;align-items:baseline}.task-day-heading :is(h3,h4){font-size:13px}.task-day-heading>small{font-size:10px}.task-day-group+.task-day-group{margin-top:22px}}
 
 
-.task-week-group+.task-week-group{margin-top:30px}
-.task-week-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:6px 0 12px;padding:13px 15px;background:color-mix(in srgb,var(--teal) 6%,var(--panel));border:1px solid color-mix(in srgb,var(--teal) 16%,var(--panel));border-radius:10px}
-.task-week-heading>div{display:flex;align-items:center;gap:9px}
-.task-week-heading :is(h2,h3){margin:0;font-size:14px;font-weight:600;line-height:1.5;letter-spacing:-.2px}
-.task-week-heading>div>span{font-size:10px;min-width:20px;padding:2px 6px;border-radius:5px;background:var(--panel);color:var(--muted);text-align:center}
-.task-week-heading>small{font-size:11px;color:var(--muted);text-align:right}
-.course-register-panel .task-week-heading :is(h2,h3){font-size:14px;margin:0}
-.task-week-group .task-day-group+.task-day-group{margin-top:16px}
-.task-week-heading+.task-day-group .task-day-heading{padding-top:5px}
-@media(max-width:640px){.task-week-heading{padding:11px 12px;gap:9px}.task-week-heading :is(h2,h3){font-size:13px}.task-week-heading>small{font-size:10px}.task-week-group+.task-week-group{margin-top:25px}}
+.task-week-group+.task-week-group{margin-top:34px}
+.task-week-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:0 2px 13px;padding:0;background:none;border:0;border-radius:0}
+.task-week-heading>div{display:flex;align-items:center;gap:11px}
+.task-week-heading :is(h2,h3){margin:0;font:600 24px/1.25 'Space Grotesk',sans-serif;letter-spacing:-.7px}
+.task-week-heading>div>span{font-size:11px;min-width:24px;padding:4px 8px;border-radius:7px;background:color-mix(in srgb,var(--teal) 9%,var(--panel));color:var(--teal);text-align:center}
+.task-week-heading>small{font-size:12px;color:var(--muted);text-align:right;padding-bottom:3px}
+.week-current .task-week-heading :is(h2,h3){font-size:27px;color:var(--teal)}
+.task-week-body{padding:8px 20px;background:var(--panel);border:1px solid var(--line);border-radius:14px}
+.week-current .task-week-body{border-color:color-mix(in srgb,var(--teal) 30%,var(--panel));box-shadow:0 3px 14px #17333a05}
+.task-week-group .task-day-group+.task-day-group{margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.task-week-body .task-day-heading{padding:9px 0;margin:0;border:0;gap:10px}
+.task-week-body .task-day-heading :is(h3,h4){font-size:12px;font-weight:500;color:var(--muted);letter-spacing:0}
+.task-week-body .task-day-heading>small{font-size:10px}
+.has-week .task-day-heading>div>span{display:none}
+.task-week-body .quiet-task-row{padding:15px 0;gap:13px}
+.task-week-body .quiet-deadline{font-size:11px;font-variant-numeric:tabular-nums}
+.task-week-body .quiet-task-actions{gap:0}
+.task-week-group:not(.has-week) .task-day-heading :is(h3,h4){font-size:17px;font-weight:600}
+.task-week-body .task-day-group.overdue .task-day-heading :is(h3,h4){color:#b75e4e}
+.task-week-body .task-day-group.today .task-day-heading :is(h3,h4){color:var(--teal)}
+.course-register-panel .task-week-heading :is(h2,h3){font-size:21px;margin:0}
+.course-register-panel .week-current .task-week-heading :is(h2,h3){font-size:23px}
+.course-register-panel .task-week-body{background:var(--panel)}
+html[data-theme=dark] .week-current .task-week-heading :is(h2,h3),html[data-theme=dark] .task-week-heading>div>span{color:#91d4bc}
+@media(max-width:640px){
+ .task-week-heading{gap:10px;align-items:flex-start;margin-bottom:12px}
+ .task-week-heading>div{gap:8px}
+ .task-week-heading :is(h2,h3){font-size:21px}
+ .week-current .task-week-heading :is(h2,h3){font-size:24px}
+ .task-week-heading>small{font-size:10px;max-width:125px;line-height:1.5;padding-top:5px;flex-shrink:0}
+ .task-week-heading>div>span{padding:3px 6px;min-width:20px;font-size:10px}
+ .task-week-body{padding:6px 12px;border-radius:12px}
+ .task-week-group+.task-week-group{margin-top:29px}
+ .task-week-body .task-day-heading :is(h3,h4){font-size:11px}
+ .task-week-body .task-day-heading>small{font-size:10px}
+ .task-week-body .quiet-task-row{position:relative;display:grid;grid-template-columns:22px minmax(0,1fr) auto;column-gap:10px;row-gap:3px;padding:13px 0}
+ .task-week-body .quiet-task-row>.check{grid-column:1;grid-row:1 / span 2;align-self:center}
+ .task-week-body .quiet-task-copy{grid-column:2;grid-row:1 / span 2;align-self:center;min-width:0}
+ .task-week-body .quiet-task-copy strong{font-size:13px}
+ .task-week-body .quiet-task-copy span{font-size:10px}
+ .task-week-body .quiet-deadline{grid-column:3;grid-row:1;margin:0;order:initial;justify-self:end;font-size:10px;align-self:end}
+ .task-week-body .quiet-task-actions{grid-column:3;grid-row:2;margin:0;justify-self:end}
+ .task-week-body .quiet-task-actions button{padding:5px}
+ .task-week-body .urgent-dot{position:absolute;right:1px;top:5px}
+}
 
 .course-visibility{border-top:1px solid var(--line);padding-top:24px;margin-top:24px}
 .course-visibility .schedule-section-heading{margin-bottom:15px}
