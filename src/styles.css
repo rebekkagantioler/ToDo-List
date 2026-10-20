@@ -297,3 +297,13 @@ html[data-theme=dark] .week-current .task-week-heading :is(h2,h3),html[data-them
 }
 
 .transfer-choice{display:flex;align-items:center;gap:14px;padding:16px;background:var(--surface,#fff);border:1px solid var(--border,#dce5e5);border-radius:12px;margin:10px 0}.transfer-choice input{width:20px;height:20px;accent-color:#2d8075;flex-shrink:0}.transfer-choice span{display:grid;gap:5px}.transfer-choice small,.transfer-start small{color:var(--muted,#74858d)}.course-transfer h3{margin-top:26px}.transfer-start{display:grid;gap:8px;margin-top:20px}.course-update-banner{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px;background:#e6f3ef;border-radius:14px;margin-bottom:24px}.course-update-banner p{margin:5px 0 0}@media(max-width:600px){.course-update-banner{align-items:stretch;flex-direction:column}}
+
+@media(max-width:640px){
+ .sidebar-hidden .topbar{height:58px;min-height:58px;padding:0 14px;border-bottom:1px solid var(--line);background:var(--panel);position:relative;z-index:7}
+ .sidebar-hidden .topbar .mobile-menu{display:inline-flex}
+ .sidebar-hidden .topbar .crumb{display:block}
+ .sidebar-hidden .topbar .sidebar-toggle{display:none}
+ .sidebar-hidden .sidebar.menu-open{top:58px;padding-top:24px}
+ .sidebar-hidden .content>.page-heading,.sidebar-hidden .quiet-tasks>.page-heading,.sidebar-hidden .simple-dashboard>.page-heading,.sidebar-hidden .focus-page>.page-heading,.sidebar-hidden .planner-page>.page-heading{padding-left:0}
+ .sidebar-hidden .timer-bar{padding-left:14px}.sidebar-hidden .notice{margin-left:0}
+}
