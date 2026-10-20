@@ -295,3 +295,5 @@ html[data-theme=dark] .week-current .task-week-heading :is(h2,h3),html[data-them
  .quiet-tasks.compact .quiet-task-copy span{font-size:10px}
  .quiet-tasks.compact .quiet-task-actions{flex-shrink:0}
 }
+
+.transfer-choice{display:flex;align-items:center;gap:14px;padding:16px;background:var(--surface,#fff);border:1px solid var(--border,#dce5e5);border-radius:12px;margin:10px 0}.transfer-choice input{width:20px;height:20px;accent-color:#2d8075;flex-shrink:0}.transfer-choice span{display:grid;gap:5px}.transfer-choice small,.transfer-start small{color:var(--muted,#74858d)}.course-transfer h3{margin-top:26px}.transfer-start{display:grid;gap:8px;margin-top:20px}.course-update-banner{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px;background:#e6f3ef;border-radius:14px;margin-bottom:24px}.course-update-banner p{margin:5px 0 0}@media(max-width:600px){.course-update-banner{align-items:stretch;flex-direction:column}}

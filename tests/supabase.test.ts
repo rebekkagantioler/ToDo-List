@@ -44,6 +44,23 @@ test('Supabase schema: user isolation, cross-user relationships and atomic impor
   const invalidTemplate=structuredClone(shared.payload);invalidTemplate.events[0].weekday=9;
   await assert.rejects(()=>db.query('SELECT copy_course_template($1::jsonb)',[JSON.stringify(invalidTemplate)]));
   assert.equal((await db.query('SELECT * FROM courses')).rows.length,1);
+  // Shared routines are templates only; selection controls importing and updating.
+  await db.exec(`SELECT set_config('request.jwt.claim.sub','${alice}',false);INSERT INTO settings(key,value) VALUES('homework-series-source','{"id":"source","event_id":42,"starts_on":"2026-10-19","skipped":[],"task":{"title":"VO nachbereiten","description":"SECRET ROUTINE","course_id":1,"type":"Nachbereitung","estimate_minutes":45,"priority":"Mittel","tracking":1}}');SELECT set_config('request.jwt.claim.sub','${bob}',false);`);
+  const withRoutine:any=(await db.query('SELECT get_course_catalog_entry($1) AS p',[shared.payload.source_key])).rows[0].p;
+  assert.equal(withRoutine.homework.length,1);assert.ok(!JSON.stringify(withRoutine).includes('SECRET ROUTINE'));
+  const declined={...withRoutine,events:[],homework:[],update_course:false};
+  await db.query('SELECT apply_course_update($1,$2::jsonb)',[copiedId,JSON.stringify(declined)]);
+  assert.equal((await db.query("SELECT * FROM settings WHERE key LIKE 'homework-series-%'")).rows.length,0);
+  await db.query('SELECT apply_course_update($1,$2::jsonb)',[copiedId,JSON.stringify({...withRoutine,update_course:false})]);
+  const imported:any=(await db.query("SELECT value FROM settings WHERE key LIKE 'homework-series-%'")).rows[0];
+  const routine=JSON.parse(imported.value);assert.equal(routine.task.course_id,Number(copiedId));assert.notEqual(routine.event_id,42);assert.equal(routine.task.description,'');
+  assert.equal((await db.query('SELECT * FROM tasks')).rows.length,0);
+  assert.equal((await db.query('SELECT * FROM recurring_events')).rows.length,1);
+  await assert.rejects(()=>db.query('SELECT apply_course_update($1,$2::jsonb)',[1,JSON.stringify(withRoutine)]));
+  const change=structuredClone(withRoutine);change.events[0].start_time='09:30';change.homework=[];change.update_course=false;
+  await db.query('SELECT apply_course_update($1,$2::jsonb)',[copiedId,JSON.stringify(change)]);
+  assert.equal((await db.query('SELECT start_time FROM recurring_events')).rows[0].start_time,'09:30');
+  assert.equal((await db.query("SELECT value FROM settings WHERE key LIKE 'homework-series-%'")).rows[0].value,imported.value);
   // Withdrawing the original hides it but preserves Bob's independent private copy.
   await db.exec(`SELECT set_config('request.jwt.claim.sub','${alice}',false);UPDATE settings SET value='false' WHERE key='course-catalog-visible-1';SELECT set_config('request.jwt.claim.sub','${bob}',false);`);
   assert.equal((await db.query('SELECT * FROM list_course_catalog()')).rows.length,0);assert.equal((await db.query('SELECT * FROM courses')).rows.length,1);

@@ -1,7 +1,7 @@
 import type { AppData } from './types';
 import { cloud } from './cloud';
 import { enrichData } from './data';
-import { catalogEntries, type CourseCatalogEntry } from './catalog';
+import { catalogEntries, type CourseCatalogEntry, type CourseTemplate } from './catalog';
 import { homeworkPlan } from './homework';
 const tables:Record<string,string>={courses:'courses',tasks:'tasks',sessions:'work_sessions',blocks:'planned_blocks',recurring:'recurring_events',settings:'settings'};
 const columns:Record<string,string[]>={courses:['name','code','semester','ects','hours_per_ects','color','description'],tasks:['title','description','area','type','course_id','deadline','estimate_minutes','priority','status','tracking','completed_at'],sessions:['task_id','course_id','started_at','ended_at','kind','note'],blocks:['task_id','course_id','title','starts_at','ends_at','kind'],recurring:['course_id','title','weekday','start_time','end_time','starts_on','ends_on','auto_track'],settings:['key','value']};
@@ -20,6 +20,7 @@ export async function loadData():Promise<AppData>{
 }
 async function request(path:string,method='POST',body?:unknown) {
  if(!cloud){const r=await fetch('/api'+path,{method,headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});if(!r.ok){const msg=await r.json().catch(()=>({error:'Speichern fehlgeschlagen'}));throw new Error(msg.error)}return r.json()}
+ if(path.startsWith('/course-update/')){const r=await cloud.rpc('apply_course_update',{target_course:Number(path.split('/')[2]),template:body});if(r.error)throw new Error(r.error.message);return r.data}
  if(path==='/course-copy'){const r=await cloud.rpc('copy_course_template',{template:body});if(r.error)throw new Error(r.error.message);return r.data}
  if(path==='/import'){const r=await cloud.rpc('import_backup',{backup:body});if(r.error)throw new Error(r.error.message);return {ok:true}}
  const [resource,id]=path.slice(1).split('/');const table=tables[resource];if(!table)throw new Error('Unbekannte Datenart');
@@ -31,13 +32,13 @@ async function request(path:string,method='POST',body?:unknown) {
 }
 
 export async function api(path:string,method='POST',body?:unknown):Promise<any>{
- const stableBody=cloud&&method==='POST'&&!['/import','/course-copy'].includes(path)?{...(body as object),id:(body as any)?.id??Math.floor(Math.random()*3500000000000000)+1}:body;
+ const stableBody=cloud&&method==='POST'&&!['/import','/course-copy'].includes(path)&&!path.startsWith('/course-update/')?{...(body as object),id:(body as any)?.id??Math.floor(Math.random()*3500000000000000)+1}:body;
  for(let attempt=0;;attempt++){
   try{return await request(path,method,stableBody)}catch(error){
    const message=error instanceof Error?error.message:String(error);
    const network=/load failed|failed to fetch|fetch failed|network|networkerror/i.test(message);
    if(!network)throw error;
-   if(attempt>=2||(!cloud&&method==='POST')||['/import','/course-copy'].includes(path))throw new Error('Die Verbindung wurde unterbrochen. Bitte prüfe, ob der Eintrag gespeichert wurde, bevor du es erneut versuchst.');
+   if(attempt>=2||(!cloud&&method==='POST')||(['/import','/course-copy'].includes(path)||path.startsWith('/course-update/')))throw new Error('Die Verbindung wurde unterbrochen. Bitte prüfe, ob der Eintrag gespeichert wurde, bevor du es erneut versuchst.');
    await new Promise(resolve=>setTimeout(resolve,400*(attempt+1)));
   }
  }
@@ -45,7 +46,13 @@ export async function api(path:string,method='POST',body?:unknown):Promise<any>{
 
 export async function loadCourseCatalog():Promise<CourseCatalogEntry[]>{
  if(!cloud)return catalogEntries(await readData());
+ const ready=await cloud.rpc('course_catalog_transfer_ready');if(ready.error||!ready.data)throw new Error('Bitte die aktuelle Datei supabase/course-templates.sql in Supabase ausführen, um Übernahmeoptionen zu aktivieren.');
  const {data,error}=await cloud.rpc('list_course_catalog');
  if(error)throw new Error('Der Kurskatalog ist noch nicht eingerichtet. Bitte die aktuelle Datei supabase/course-templates.sql in Supabase ausführen.');
  return (data||[]) as CourseCatalogEntry[];
+}
+
+export async function loadCourseSource(sourceKey:string):Promise<CourseTemplate|null>{
+ if(!cloud){const r=await fetch(`/api/course-source/${encodeURIComponent(sourceKey)}`);if(!r.ok)throw new Error('Vorlage konnte nicht geprüft werden');return r.json()}
+ const {data,error}=await cloud.rpc('get_course_catalog_entry',{source_key:sourceKey});if(error)throw new Error('Kursupdates benötigen die aktuelle Datei supabase/course-templates.sql.');return data;
 }

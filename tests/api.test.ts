@@ -42,6 +42,15 @@ test('API: persistence, validation, relationships and complete backup round-trip
   const copied=await (await request('/course-copy','POST',payload)).json();
   let shared=await (await request('/data')).json();assert.equal(shared.courses.length,2);assert.equal(shared.tasks.length,1);assert.equal(shared.courses.find((v:any)=>v.id===copied.id).ects,3);
   const copiedEvent=shared.recurring.find((v:any)=>v.course_id===copied.id);assert.equal(shared.settings.find((v:any)=>v.key===`lecture-exclusions-${copiedEvent.id}`).value,'["2026-10-26"]');
+  const selectable={...payload,source_key:'original',revision:'v1',events:[{...payload.events[0],source_key:'meeting'}],homework:[{source_key:'routine',event_key:'meeting',title:'Nachbereiten',type:'Nachbereitung',starts_on:'2026-10-19',estimate_minutes:30,priority:'Mittel',tracking:1}]};
+  assert.equal((await request(`/course-update/${copied.id}`,'POST',{...selectable,homework:[]})).status,200);
+  shared=await (await request('/data')).json();assert.equal(shared.settings.filter((s:any)=>s.key.startsWith('homework-series-')).length,0);
+  assert.equal((await request(`/course-update/${copied.id}`,'POST',selectable)).status,200);
+  shared=await (await request('/data')).json();const routine=JSON.parse(shared.settings.find((s:any)=>s.key.startsWith('homework-series-')).value);
+  assert.equal(routine.task.course_id,copied.id);assert.equal(routine.task.title,'Nachbereiten');assert.equal(shared.tasks.length,1);
+  const before=JSON.stringify(routine);
+  await request(`/course-update/${copied.id}`,'POST',{...selectable,revision:'v2',homework:[],events:[]});
+  shared=await (await request('/data')).json();assert.equal(JSON.stringify(JSON.parse(shared.settings.find((s:any)=>s.key.startsWith('homework-series-')).value)),before);
   const invalidCopy=structuredClone(payload);invalidCopy.events[0].weekday=9;assert.equal((await request('/course-copy','POST',invalidCopy)).status,400);assert.equal((await (await request('/data')).json()).courses.length,2);
   await request(`/courses/${copied.id}`,'DELETE');
   const generated={id:7000000000000001,title:'Wöchentlich',area:'Universität',type:'Hausaufgabe',course_id:c.id,estimate_minutes:60};
