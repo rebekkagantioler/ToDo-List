@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {homeworkId,homeworkKey,homeworkOwner,homeworkPlan,homeworkTitleUpdates,nextDeadline,type HomeworkSeries} from '../src/homework';
+import {homeworkId,homeworkKey,homeworkOwner,homeworkPlan,homeworkTitleUpdates,homeworkDeadline,nextDeadline,type HomeworkSeries} from '../src/homework';
 import type {AppData} from '../src/types';
 const series:HomeworkSeries={id:'test',event_id:1,starts_on:'2026-10-19',skipped:[],task:{title:'Blatt',description:'',area:'Universität',type:'Hausaufgabe',course_id:4,deadline:null,estimate_minutes:60,priority:'Mittel',status:'Offen',tracking:1}};
 const fixture=():AppData=>({courses:[],tasks:[],sessions:[],blocks:[],recurring:[{id:1,course_id:4,title:'Analysis UE',weekday:1,start_time:'10:00',end_time:'11:00',starts_on:'2026-10-19',ends_on:'2026-11-02',auto_track:1}],settings:[{key:homeworkKey(series.id),value:JSON.stringify(series)}]});
@@ -48,4 +48,23 @@ test('Immediate next sheet respects cancellations, explicitly deleted sheets and
  assert.deepEqual(homeworkPlan(d,new Date('2026-10-20T10:00')).create.map(t=>t.deadline),['2026-11-16T10:00']);
  d.settings[0].value=JSON.stringify({...series,starts_on:'2026-11-09',skipped:['2026-11-16']});assert.deepEqual(homeworkPlan(d,new Date('2026-10-20T10:00')).create.map(t=>t.deadline),['2026-11-23T10:00']);
  d.settings[0].value=JSON.stringify({...series,starts_on:'2026-11-09',stopped:true});assert.equal(homeworkPlan(d,new Date('2026-10-20T10:00')).create.length,0);
+});
+
+test('Thursday at noon can have a Wednesday 14:00 deadline, including month/year and DST boundaries',()=>{
+ const d=fixture(),rule={...series,submission:{days_before:1,time:'14:00'}};
+ d.recurring[0].weekday=4;d.recurring[0].start_time='12:00';d.recurring[0].starts_on='2026-10-22';d.recurring[0].ends_on='2026-11-05';d.settings[0].value=JSON.stringify(rule);
+ assert.equal(homeworkDeadline(d,rule,'2026-10-22'),'2026-10-21T14:00');
+ assert.equal(homeworkDeadline(d,rule,'2026-10-29'),'2026-10-28T14:00');
+ assert.equal(homeworkDeadline(d,rule,'2027-01-01'),'2026-12-31T14:00');
+ assert.equal(homeworkDeadline(d,{...series,submission:{days_before:0,time:'09:00'}},'2026-10-22'),'2026-10-22T09:00');
+ assert.equal(nextDeadline(d,4,new Date('2026-10-20T10:00')),'2026-10-21T14:00');
+ assert.equal(nextDeadline(d,4,new Date('2026-10-21T15:00')),'2026-10-28T14:00');
+ const plan=homeworkPlan(d,new Date('2026-10-20T10:00'));assert.equal(plan.create[0].deadline,'2026-10-21T14:00');
+ d.tasks=plan.create;d.settings.push({key:'lecture-exclusions-1',value:'["2026-10-22"]'});assert.equal(homeworkPlan(d,new Date('2026-10-20T10:00')).remove[0].id,d.tasks[0].id);
+});
+test('Changing submission rules updates existing open deadlines, preserving completed work and later individual edits',()=>{
+ const d=fixture(),now=new Date('2026-11-02T10:00');d.tasks=homeworkPlan(d,now).create;d.tasks[0].status='Erledigt';
+ const edited={...series,submission:{days_before:1,time:'14:00'}};const saved={...edited,title_updates:homeworkTitleUpdates(d,edited,'2026-10-26')};d.settings[0].value=JSON.stringify(saved);
+ const plan=homeworkPlan(d,now);assert.deepEqual(plan.update.map(t=>t.deadline),['2026-10-25T14:00','2026-11-01T14:00']);assert.equal(plan.create.length,0);assert.ok(!plan.update.some(t=>t.id===d.tasks[0].id));
+ d.tasks[1].deadline='2026-10-24T09:00';assert.equal(homeworkPlan(d,now).update.length,1);
 });
