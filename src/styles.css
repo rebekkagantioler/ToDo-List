@@ -207,3 +207,12 @@ html[data-theme=dark] .course-register{--register-accent:#91d4bc;--register-line
 .task-week-group .task-day-group+.task-day-group{margin-top:16px}
 .task-week-heading+.task-day-group .task-day-heading{padding-top:5px}
 @media(max-width:640px){.task-week-heading{padding:11px 12px;gap:9px}.task-week-heading :is(h2,h3){font-size:13px}.task-week-heading>small{font-size:10px}.task-week-group+.task-week-group{margin-top:25px}}
+
+.course-visibility{border-top:1px solid var(--line);padding-top:24px;margin-top:24px}
+.course-visibility .schedule-section-heading{margin-bottom:15px}
+.course-register-panel .course-visibility h2{margin:0;font-size:16px}
+.course-visibility .section-count{height:auto;padding:4px 9px;white-space:nowrap}
+.course-visibility-choice{display:flex;align-items:flex-start;gap:12px;padding:16px;background:var(--soft);border:1px solid var(--line);border-radius:12px;cursor:pointer}
+.course-visibility-choice>input{width:18px;height:18px;flex-shrink:0;margin:1px 0 0;accent-color:var(--teal)}
+.course-visibility-choice strong{display:block;font-size:13px;font-weight:500;line-height:1.6}
+.course-visibility-choice small{display:block;font-size:12px;line-height:1.7;color:var(--muted);margin-top:6px}

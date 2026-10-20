@@ -19,6 +19,12 @@ test('Supabase schema: user isolation, cross-user relationships and atomic impor
   assert.equal((await db.query('SELECT * FROM work_sessions')).rows.length,0);
   await assert.rejects(()=>db.exec(`INSERT INTO work_sessions(course_id,started_at,ended_at) VALUES(1,'2026-10-12T09:00Z','2026-10-12T10:00Z')`));
   await assert.rejects(()=>db.exec(`INSERT INTO tasks(id,title,area,type,course_id) VALUES (3,'Fremd','Universität','Lernen',1)`));
+  assert.equal((await db.query('SELECT course_catalog_visibility_ready() AS ready')).rows[0].ready,true);
+  assert.equal((await db.query('SELECT * FROM list_course_catalog()')).rows.length,0);
+  // A setting with the same course ID in another account cannot publish Alice's course.
+  await db.exec(`INSERT INTO settings(key,value) VALUES('course-catalog-visible-1','true')`);
+  assert.equal((await db.query('SELECT * FROM list_course_catalog()')).rows.length,0);
+  await db.exec(`DELETE FROM settings WHERE key='course-catalog-visible-1';SELECT set_config('request.jwt.claim.sub','${alice}',false);INSERT INTO settings(key,value) VALUES('course-catalog-visible-1','true');SELECT set_config('request.jwt.claim.sub','${bob}',false);`);
   const catalog=await db.query('SELECT * FROM list_course_catalog()');assert.equal(catalog.rows.length,1);
   const entry:any=catalog.rows[0];assert.equal(entry.name,'Mathematik');assert.equal(entry.payload.course.description,'');assert.equal(entry.payload.course.ects,2.5);assert.equal(entry.payload.events.length,0);assert.ok(!JSON.stringify(entry).includes(alice));
   await db.exec(`SELECT set_config('request.jwt.claim.sub','${alice}',false);UPDATE courses SET description='PRIVATE NOTES' WHERE id=1;INSERT INTO recurring_events(id,course_id,title,weekday,start_time,end_time,starts_on,ends_on) VALUES(42,1,'UE',1,'10:00','11:00','2026-10-19','2026-11-02');INSERT INTO settings(key,value) VALUES('lecture-exclusions-42','["2026-10-26"]'),('private-setting','PRIVATE NOTES');SELECT set_config('request.jwt.claim.sub','${bob}',false);`);
@@ -27,13 +33,20 @@ test('Supabase schema: user isolation, cross-user relationships and atomic impor
   await assert.rejects(()=>db.query('SELECT * FROM course_templates'));
   const shared=updated;
   await db.query('SELECT copy_course_template($1::jsonb)',[JSON.stringify(shared.payload)]);
-  assert.equal((await db.query('SELECT * FROM list_course_catalog()')).rows.length,1); // Identical copies collapse into one entry.
+  assert.equal((await db.query('SELECT * FROM list_course_catalog()')).rows.length,1); // Imported copies remain private.
   assert.equal((await db.query('SELECT * FROM tasks')).rows.length,0);
   assert.equal((await db.query('SELECT * FROM recurring_events')).rows.length,1);
-  assert.equal((await db.query('SELECT value FROM settings')).rows[0].value,'["2026-10-26"]');
+  assert.equal((await db.query("SELECT value FROM settings WHERE key LIKE 'lecture-exclusions-%'")).rows[0].value,'["2026-10-26"]');
+  const copiedId=(await db.query('SELECT id FROM courses')).rows[0].id;
+  await db.query("INSERT INTO settings(key,value) VALUES($1,'true')",['course-catalog-visible-'+copiedId]);
+  assert.equal((await db.query('SELECT * FROM list_course_catalog()')).rows.length,1); // Identical shared copies collapse into one entry.
+  await db.query("UPDATE settings SET value='false' WHERE key=$1",['course-catalog-visible-'+copiedId]);
   const invalidTemplate=structuredClone(shared.payload);invalidTemplate.events[0].weekday=9;
   await assert.rejects(()=>db.query('SELECT copy_course_template($1::jsonb)',[JSON.stringify(invalidTemplate)]));
   assert.equal((await db.query('SELECT * FROM courses')).rows.length,1);
+  // Withdrawing the original hides it but preserves Bob's independent private copy.
+  await db.exec(`SELECT set_config('request.jwt.claim.sub','${alice}',false);UPDATE settings SET value='false' WHERE key='course-catalog-visible-1';SELECT set_config('request.jwt.claim.sub','${bob}',false);`);
+  assert.equal((await db.query('SELECT * FROM list_course_catalog()')).rows.length,0);assert.equal((await db.query('SELECT * FROM courses')).rows.length,1);
   await db.exec('DELETE FROM courses');
   await db.exec(`INSERT INTO courses (id,name,semester) VALUES (1,'Bobs Kurs','WS');SELECT set_config('request.jwt.claim.sub','${alice}',false);`);
   const c=(await db.query('SELECT * FROM courses')).rows;assert.equal((c[0] as any).ects,2.5);

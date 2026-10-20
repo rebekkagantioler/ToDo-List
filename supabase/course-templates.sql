@@ -31,7 +31,7 @@ REVOKE ALL ON FUNCTION public.copy_course_template(jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.copy_course_template(jsonb) TO authenticated;
 commit;
 
--- Automatischer Katalog: liest alle vorhandenen Kurse direkt, auch bereits angelegte.
+-- Katalog: zeigt ausschließlich ausdrücklich freigegebene Kurse. Ohne Einstellung bleibt ein Kurs privat.
 -- Nur die unten explizit ausgewählten Kurs-/Terminfelder werden geteilt.
 begin;
 CREATE OR REPLACE FUNCTION public.catalog_exclusions(value text) RETURNS jsonb
@@ -55,11 +55,15 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$
    ) ORDER BY e.starts_on,e.weekday,e.start_time,e.title,e.id)
    FROM public.recurring_events e LEFT JOIN public.settings s ON s.user_id=e.user_id AND s.key='lecture-exclusions-'||e.id
    WHERE e.user_id=c.user_id AND e.course_id=c.id),'[]'::jsonb)
-  ) AS payload FROM public.courses c WHERE auth.uid() IS NOT NULL
+  ) AS payload FROM public.courses c WHERE auth.uid() IS NOT NULL AND EXISTS (SELECT 1 FROM public.settings visibility WHERE visibility.user_id=c.user_id AND visibility.key='course-catalog-visible-'||c.id AND visibility.value='true')
  ) entry ORDER BY entry.name,entry.payload;
 $$;
 REVOKE ALL ON FUNCTION public.list_course_catalog() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.list_course_catalog() TO authenticated;
+CREATE OR REPLACE FUNCTION public.course_catalog_visibility_ready() RETURNS boolean
+LANGUAGE sql STABLE SECURITY INVOKER SET search_path=public AS $$ SELECT true $$;
+REVOKE ALL ON FUNCTION public.course_catalog_visibility_ready() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.course_catalog_visibility_ready() TO authenticated;
 -- Die frühere manuelle Vorlagentabelle wird nicht mehr direkt veröffentlicht.
 REVOKE ALL ON public.course_templates FROM authenticated;
 REVOKE ALL ON SEQUENCE public.course_templates_id_seq FROM authenticated;
