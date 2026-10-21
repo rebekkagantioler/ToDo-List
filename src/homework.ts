@@ -24,9 +24,13 @@ export function homeworkDeadline(data:AppData,series:HomeworkSeries,date:string)
  const key=`${day.getFullYear()}-${String(day.getMonth()+1).padStart(2,'0')}-${String(day.getDate()).padStart(2,'0')}`;
  return `${key}T${series.submission.time}`;
 }
+export function homeworkRelease(data:AppData,series:HomeworkSeries,date:string){
+ const event=data.recurring.find(e=>e.id===series.event_id);
+ const release=new Date(`${date}T${event?.start_time||'00:00'}`);release.setDate(release.getDate()-7);return release;
+}
 export function nextHomeworkDate(data:AppData,series:HomeworkSeries,now=new Date()){
  const event=data.recurring.find(e=>e.id===series.event_id);if(!event)return '';
- return homeworkDates(data,series).find(date=>!series.skipped.includes(date)&&new Date(homeworkDeadline(data,series,date))>=now)||'';
+ return homeworkDates(data,series).find(date=>!series.skipped.includes(date)&&new Date(`${date}T${event.start_time}`)>=now)||'';
 }
 export function homeworkTitle(data:AppData,series:HomeworkSeries,date:string){
  const numbering=series.numbering;
@@ -65,7 +69,7 @@ export function homeworkPlan(data:AppData,now=new Date()){
   for(const date of occurrenceDates(event)){
    if(date<series.starts_on)continue;
    const id=homeworkId(series.id,date),existing=data.tasks.find(t=>t.id===id);
-   const deadline=homeworkDeadline(data,series,date),release=new Date(deadline);release.setDate(release.getDate()-7);
+   const deadline=homeworkDeadline(data,series,date),release=homeworkRelease(data,series,date);
    const skipped=excluded.includes(date)||series.skipped.includes(date);
    if(existing&&(skipped||series.deleted)&&existing.status!=='Erledigt'&&!data.sessions.some(s=>s.task_id===id))remove.push(existing);
    const rename=series.title_updates?.[String(id)];

@@ -68,3 +68,13 @@ test('Changing submission rules updates existing open deadlines, preserving comp
  const plan=homeworkPlan(d,now);assert.deepEqual(plan.update.map(t=>t.deadline),['2026-10-25T14:00','2026-11-01T14:00']);assert.equal(plan.create.length,0);assert.ok(!plan.update.some(t=>t.id===d.tasks[0].id));
  d.tasks[1].deadline='2026-10-24T09:00';assert.equal(homeworkPlan(d,now).update.length,1);
 });
+
+test('Early submission does not release the next sheet before the lecture',()=>{
+ const d=fixture();d.recurring[0]={...d.recurring[0],weekday:4,start_time:'12:00',starts_on:'2026-10-22',ends_on:'2026-11-05'};
+ d.settings[0].value=JSON.stringify({...series,submission:{days_before:1,time:'14:00'}});
+ d.tasks=homeworkPlan(d,new Date('2026-10-20T10:00')).create;
+ assert.deepEqual(d.tasks.map(t=>t.deadline),['2026-10-21T14:00']);
+ assert.equal(homeworkPlan(d,new Date('2026-10-21T14:01')).create.length,0);
+ assert.equal(homeworkPlan(d,new Date('2026-10-22T11:59')).create.length,0);
+ assert.deepEqual(homeworkPlan(d,new Date('2026-10-22T12:00')).create.map(t=>t.deadline),['2026-10-28T14:00']);
+});
