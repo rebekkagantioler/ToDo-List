@@ -71,7 +71,8 @@ export function homeworkPlan(data:AppData,now=new Date()){
    const id=homeworkId(series.id,date),existing=data.tasks.find(t=>t.id===id);
    const deadline=homeworkDeadline(data,series,date),release=homeworkRelease(data,series,date);
    const skipped=excluded.includes(date)||series.skipped.includes(date);
-   if(existing&&(skipped||series.deleted)&&existing.status!=='Erledigt'&&!data.sessions.some(s=>s.task_id===id))remove.push(existing);
+   const premature=release>now&&date!==nextDate&&existing?.status==='Offen'&&!data.blocks.some(b=>b.task_id===id);
+   if(existing&&(skipped||series.deleted||premature)&&existing.status!=='Erledigt'&&!data.sessions.some(s=>s.task_id===id))remove.push(existing);
    const rename=series.title_updates?.[String(id)];
    if(existing&&!skipped&&!series.deleted&&existing.status!=='Erledigt'&&rename){
     const title=existing.title===rename.from?rename.to:existing.title;

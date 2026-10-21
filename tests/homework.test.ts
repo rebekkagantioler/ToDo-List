@@ -78,3 +78,18 @@ test('Early submission does not release the next sheet before the lecture',()=>{
  assert.equal(homeworkPlan(d,new Date('2026-10-22T11:59')).create.length,0);
  assert.deepEqual(homeworkPlan(d,new Date('2026-10-22T12:00')).create.map(t=>t.deadline),['2026-10-28T14:00']);
 });
+
+test('Previously generated early sheets disappear until lecture time without losing started or completed work',()=>{
+ const d=fixture();d.recurring[0]={...d.recurring[0],weekday:4,start_time:'12:00',starts_on:'2026-10-22',ends_on:'2026-11-05'};
+ d.settings[0].value=JSON.stringify({...series,submission:{days_before:1,time:'14:00'}});
+ const early=new Date('2026-10-21T15:00');
+ d.tasks=homeworkPlan(d,new Date('2026-10-22T12:00')).create;
+ const next=d.tasks.find(t=>t.deadline==='2026-10-28T14:00')!;
+ assert.deepEqual(homeworkPlan(d,early).remove.map(t=>t.id),[next.id]);
+ next.status='In Bearbeitung';assert.equal(homeworkPlan(d,early).remove.length,0);
+ next.status='Erledigt';assert.equal(homeworkPlan(d,early).remove.length,0);
+ next.status='Offen';d.sessions=[{id:1,task_id:next.id,course_id:4,started_at:'2026-10-21T14:00',ended_at:'2026-10-21T14:10',kind:'Selbstlernen',note:''}];assert.equal(homeworkPlan(d,early).remove.length,0);
+ d.sessions=[];d.tasks=d.tasks.filter(t=>t.id!==next.id);
+ assert.equal(homeworkPlan(d,early).create.length,0);
+ assert.deepEqual(homeworkPlan(d,new Date('2026-10-22T12:00')).create.map(t=>t.id),[next.id]);
+});
