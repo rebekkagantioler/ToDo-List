@@ -315,3 +315,5 @@ html[data-theme=dark] .week-current .task-week-heading :is(h2,h3),html[data-them
  .mobile-menu-close{display:flex;position:absolute;top:calc(10px + env(safe-area-inset-top,0px));right:8px;color:#d8e4e3}
  .mobile-menu-backdrop.visible{display:block;position:fixed;inset:0;z-index:29;background:#10282b55;border:0;border-radius:0;padding:0}
 }
+
+.attendance-list{display:grid;gap:12px}.attendance-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 0;border-bottom:1px solid var(--line)}.attendance-row h3{margin:0}.attendance-row .setting-actions{flex-shrink:0}.attendance-row p{margin:8px 0}.attendance-row small{color:var(--muted)}@media(max-width:640px){.attendance-row{align-items:flex-start;flex-direction:column}.attendance-row .setting-actions{flex-wrap:wrap}}

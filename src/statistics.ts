@@ -21,14 +21,26 @@ export function lastOccurrence(startsOn:string,weekday:number,count:number):stri
  day.setDate(day.getDate()+(weekday-day.getDay()+7)%7+(count-1)*7);
  return key(day);
 }
-// Generate elapsed weekly occurrences; future and canceled attendance never increases progress.
+export const attendanceKey=(eventId:number,date:string)=>`lecture-attendance-${eventId}-${date}`;
+export function attendanceAnswer(data:AppData,eventId:number,date:string):'yes'|'no'|null{
+ const value=data.settings.find(s=>s.key===attendanceKey(eventId,date))?.value;
+ return value==='yes'||value==='no'?value:null;
+}
+export function attendanceRequests(data:AppData,now=new Date()){
+ return data.recurring.filter(e=>e.course_id).flatMap(event=>{
+  const excluded=new Set(excludedDates(data,event.id));
+  // Open-ended series only need occurrences through today.
+  return occurrenceDates({...event,ends_on:event.ends_on||key(now)}).filter(date=>!excluded.has(date)&&new Date(`${date}T${event.start_time}`)<=now).map(date=>({event,date,answer:attendanceAnswer(data,event.id,date)}));
+ }).sort((a,b)=>`${b.date}T${b.event.start_time}`.localeCompare(`${a.date}T${a.event.start_time}`));
+}
+// Only confirmed, completed occurrences increase progress.
 export function attendance(data:AppData,now=new Date()):Session[]{
  const result:Session[]=[];
  for(const event of data.recurring){
   if(!event.auto_track||!event.course_id)continue;
   const excluded=new Set(excludedDates(data,event.id));
-  for(const date of occurrenceDates(event)){
-   if(excluded.has(date))continue;
+  for(const date of occurrenceDates({...event,ends_on:event.ends_on||key(now)})){
+   if(excluded.has(date)||attendanceAnswer(data,event.id,date)!=='yes')continue;
    const started_at=`${date}T${event.start_time}`,ended_at=`${date}T${event.end_time}`;
    const start=new Date(started_at),end=new Date(ended_at);
    if(end>now||end<=start)continue;
