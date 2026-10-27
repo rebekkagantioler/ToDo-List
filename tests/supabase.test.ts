@@ -66,6 +66,13 @@ test('Supabase schema: user isolation, cross-user relationships and atomic impor
   assert.equal((await db.query('SELECT * FROM list_course_catalog()')).rows.length,0);assert.equal((await db.query('SELECT * FROM courses')).rows.length,1);
   await db.exec('DELETE FROM courses');
   await db.exec(`INSERT INTO courses (id,name,semester) VALUES (1,'Bobs Kurs','WS');SELECT set_config('request.jwt.claim.sub','${alice}',false);`);
+  // Device updates compare the exact previous value; stale devices cannot revive a stopped timer.
+  await db.exec(`INSERT INTO settings(key,value) VALUES('active-timer-v1','running');`);
+  assert.equal((await db.query("UPDATE settings SET value='paused' WHERE key='active-timer-v1' AND value='running' RETURNING value")).rows.length,1);
+  assert.equal((await db.query("UPDATE settings SET value='stale' WHERE key='active-timer-v1' AND value='running' RETURNING value")).rows.length,0);
+  await db.exec(`INSERT INTO work_sessions(id,started_at,ended_at) VALUES(123,'2026-10-12T09:00Z','2026-10-12T10:00Z') ON CONFLICT(user_id,id) DO NOTHING;INSERT INTO work_sessions(id,started_at,ended_at) VALUES(123,'2026-10-12T09:00Z','2026-10-12T10:00Z') ON CONFLICT(user_id,id) DO NOTHING;`);
+  assert.equal((await db.query('SELECT * FROM work_sessions WHERE id=123')).rows.length,1);
+  await db.exec('DELETE FROM work_sessions WHERE id=123');
   const c=(await db.query('SELECT * FROM courses')).rows;assert.equal((c[0] as any).ects,2.5);
   await db.exec(`INSERT INTO planned_blocks(task_id,course_id,title,starts_at,ends_at) VALUES(2,1,'Einheit 1','2026-10-12T09:00','2026-10-12T09:25'),(2,1,'Einheit 2','2026-10-13T09:00','2026-10-13T09:25');`);
   assert.equal((await db.query('SELECT * FROM planned_blocks WHERE task_id=2')).rows.length,2);const t=(await db.query('SELECT * FROM tasks')).rows;
