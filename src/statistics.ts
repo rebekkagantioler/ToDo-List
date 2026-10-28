@@ -68,3 +68,11 @@ export function dailyMinutes(sessions:Session[],day:Date){
  const end=new Date(day);end.setDate(end.getDate()+1);
  return sessions.reduce((sum,s)=>sum+Math.max(0,Math.min(end.getTime(),new Date(s.ended_at).getTime())-Math.max(day.getTime(),new Date(s.started_at).getTime()))/60000,0);
 }
+
+export function semesterSummary(sessions:Session[],now=new Date()){
+ const start=new Date(now.getFullYear()-(now.getMonth()<9?1:0),9,1);
+ const minutes=sessions.reduce((sum,s)=>sum+Math.max(0,Math.min(now.getTime(),new Date(s.ended_at).getTime())-Math.max(start.getTime(),new Date(s.started_at).getTime()))/60000,0);
+ // Calendar days avoid daylight-saving shifts; today counts as one day.
+ const days=Math.floor((Date.UTC(now.getFullYear(),now.getMonth(),now.getDate())-Date.UTC(start.getFullYear(),9,1))/86400000)+1;
+ return {start,minutes,weeklyAverage:minutes*7/days,days};
+}
