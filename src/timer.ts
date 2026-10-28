@@ -8,3 +8,9 @@ export function timerSession(timer:ActiveTimer){
  const ended_at=timer.stoppedAt!;
  return {id:timer.id,task_id:timer.taskId??null,course_id:timer.courseId??null,kind:'Selbstlernen',note:'',started_at:new Date(new Date(ended_at).getTime()-(timer.accumulatedMs||0)).toISOString(),ended_at};
 }
+
+export function elapsedLabel(milliseconds:number){
+ const seconds=Math.floor(Math.max(0,milliseconds)/1000);
+ const minutes=Math.floor(seconds/60);
+ return minutes<60?`${minutes}:${String(seconds%60).padStart(2,'0')}`:`${Math.floor(minutes/60)}:${String(minutes%60).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
+}

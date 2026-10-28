@@ -61,5 +61,11 @@ export function useTimer(onError:(message:string)=>void,onSaved:()=>Promise<void
   await write(null);
   await onSaved();
  });
- return {timer,setTimer,stopTimer,busy};
+ const requestStop=()=>run(async()=>{if(current.current)await write(stoppedTimer(current.current))});
+ const cancelStop=()=>run(async()=>{
+  if(!current.current?.stoppedAt)return;
+  const {stoppedAt,...paused}=current.current;
+  await write({...paused,paused:true});
+ });
+ return {timer,setTimer,stopTimer,requestStop,cancelStop,busy};
 }
