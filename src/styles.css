@@ -542,8 +542,12 @@ html[data-theme=dark] .scenic-focus{background:linear-gradient(#152c3266,#172e34
 .semester-week-column{flex:1;min-width:105px;text-align:center;padding:10px 8px;border-radius:12px}
 .semester-week-column.current{background:var(--soft)}
 .semester-week-column>strong{display:block;font-size:12px;font-weight:500;font-variant-numeric:tabular-nums;margin-bottom:12px}
-.semester-week-track{height:150px;display:flex;align-items:flex-end;justify-content:center;border-bottom:1px solid var(--line)}
-.semester-week-track i{display:block;width:36px;background:var(--teal);border-radius:6px 6px 0 0}
+.semester-week-track{height:150px;display:flex;align-items:flex-end;justify-content:center;gap:6px;border-bottom:1px solid var(--line);padding-top:20px;box-sizing:content-box}
+.semester-week-bar{position:relative;width:44px;max-width:44%;background:var(--teal);border-radius:6px 6px 0 0;flex-shrink:0}
+.semester-week-bar.lecture{background:var(--blue)}
+.semester-week-bar span{position:absolute;top:7px;left:50%;transform:translateX(-50%);color:white;font-size:9px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.semester-week-bar span.above{top:auto;bottom:calc(100% + 5px);color:var(--ink)}
+.semester-week-legend{margin-bottom:16px}
 .semester-week-column>b{display:block;font-size:12px;margin:12px 0 6px}
 .semester-week-column>small{display:block;font-size:10px;color:var(--muted);line-height:1.6}
 @media(max-width:640px){.semester-week-chart{gap:6px}.semester-week-column{min-width:95px}.semester-week-track{height:120px}.semester-week-navigation .text-btn{font-size:11px}}

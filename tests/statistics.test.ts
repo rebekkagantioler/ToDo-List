@@ -119,3 +119,15 @@ test('Semester weekly bars clip at semester start and now and split across Monda
  assert.equal(weeks.reduce((sum,w)=>sum+w.minutes,0),semesterSummary(sessions,now).minutes);
  assert.equal(semesterWeeks([],now).length,2);
 });
+
+
+test('Weekly study and lectures sum to semester total, including DST and confirmed attendance',()=>{
+ const d=confirmedData();
+ d.sessions=[{id:1,task_id:null,course_id:1,kind:'Selbstlernen',note:'',started_at:'2026-10-25T23:30',ended_at:'2026-10-26T00:30'},
+ {id:2,task_id:null,course_id:1,kind:'Vorlesung',note:'',started_at:'2026-10-26T09:00',ended_at:'2026-10-26T10:00'}];
+ const now=new Date('2026-10-27T12:00'),sessions=[...d.sessions,...attendance(d,now)],weeks=semesterWeeks(sessions,now);
+ assert.deepEqual(weeks.map(w=>w.work),[0,0,0,30,30]);
+ assert.deepEqual(weeks.map(w=>w.lecture),[0,90,90,90,60]);
+ for(const w of weeks)assert.equal(w.minutes,w.work+w.lecture);
+ assert.equal(weeks.reduce((sum,w)=>sum+w.minutes,0),semesterSummary(sessions,now).minutes);
+});
