@@ -77,7 +77,24 @@ export function dailyMinutes(sessions:Session[],day:Date){
 export function semesterSummary(sessions:Session[],now=new Date()){
  const start=new Date(now.getFullYear()-(now.getMonth()<9?1:0),9,1);
  const minutes=sessions.reduce((sum,s)=>sum+Math.max(0,Math.min(now.getTime(),new Date(s.ended_at).getTime())-Math.max(start.getTime(),new Date(s.started_at).getTime()))/60000,0);
+ const averageStart=new Date(start);
+ // Only the initial tracking semester omits its incomplete first calendar week.
+ if(start.getFullYear()===2026)averageStart.setDate(5);
+ const averageMinutes=sessions.reduce((sum,s)=>sum+Math.max(0,Math.min(now.getTime(),new Date(s.ended_at).getTime())-Math.max(averageStart.getTime(),new Date(s.started_at).getTime()))/60000,0);
  // Calendar days avoid daylight-saving shifts; today counts as one day.
- const days=Math.floor((Date.UTC(now.getFullYear(),now.getMonth(),now.getDate())-Date.UTC(start.getFullYear(),9,1))/86400000)+1;
- return {start,minutes,weeklyAverage:minutes*7/days,days};
+ const days=Math.max(0,Math.floor((Date.UTC(now.getFullYear(),now.getMonth(),now.getDate())-Date.UTC(averageStart.getFullYear(),averageStart.getMonth(),averageStart.getDate()))/86400000)+1);
+ return {start,minutes,weeklyAverage:days?averageMinutes*7/days:0,days,averageStart};
+}
+
+export function weekComparison(sessions:Session[],first:Date,now=new Date()){
+ const previous=new Date(first);previous.setDate(previous.getDate()-7);
+ const cutoff=(now.getDay()+6)%7;
+ const values=Array.from({length:7},(_,i)=>{
+  const day=new Date(first);day.setDate(day.getDate()+i);
+  const previousDay=new Date(previous);previousDay.setDate(previousDay.getDate()+i);
+  return {current:dailyMinutes(sessions,day),previous:dailyMinutes(sessions,previousDay)};
+ });
+ const sum=(items:typeof values,field:'current'|'previous')=>items.reduce((total,v)=>total+v[field],0);
+ const percent=(current:number,previous:number)=>previous?Math.round((current/previous-1)*100):null;
+ return {full:percent(sum(values,'current'),sum(values,'previous')),toDay:percent(sum(values.slice(0,cutoff+1),'current'),sum(values.slice(0,cutoff+1),'previous')),weekday:now.toLocaleDateString('de-DE',{weekday:'long'})};
 }

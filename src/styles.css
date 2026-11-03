@@ -532,3 +532,6 @@ html[data-theme=dark] .scenic-focus{background:linear-gradient(#152c3266,#172e34
  .attendance-overview .attendance-policy .secondary{width:100%;padding:9px 5px;font-size:10px}
 }
 @media(max-width:359px){.attendance-overview .attendance-grid{grid-template-columns:1fr}}
+
+.dashboard-summary{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:640px){.dashboard-summary{grid-template-columns:1fr}}

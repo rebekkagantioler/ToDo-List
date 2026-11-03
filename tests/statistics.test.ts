@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { attendance, attendanceKey, attendanceRequests, courseProgress, dailyMinutes, semesterSummary, exclusionKey, lastOccurrence, occurrenceDates } from '../src/statistics';
+import { attendance, attendanceKey, attendanceRequests, courseProgress, dailyMinutes, semesterSummary, weekComparison, exclusionKey, lastOccurrence, occurrenceDates } from '../src/statistics';
 import type { AppData, Course } from '../src/types';
 const course:Course={id:1,name:'Mathe',code:'M',semester:'WS',ects:5,hours_per_ects:25,color:'#123456',description:''};
 const data=():AppData=>({courses:[course],tasks:[],blocks:[],settings:[],sessions:[],recurring:[{id:1,course_id:1,title:'Vorlesung',weekday:1,start_time:'09:00',end_time:'10:30',starts_on:'2026-10-05',ends_on:'2026-10-26',auto_track:1}]});
@@ -73,14 +73,14 @@ test('Requests appear at the exact start, exclude cancellations, and support ope
  assert.equal(attendanceRequests(d,new Date('2026-10-19T09:00')).length,2);
 });
 
-test('Semester totals clip sessions at October 1 and now, average includes all calendar days',()=>{
+test('Semester totals clip sessions at October 1 and now, average excludes the first calendar week only in 2026',()=>{
  const session=(id:number,started_at:string,ended_at:string)=>({id,task_id:null,course_id:null,started_at,ended_at,kind:'Selbstlernen',note:''});
  const result=semesterSummary([
   session(1,'2026-09-30T23:00','2026-10-01T01:00'),
   session(2,'2026-10-28T10:00','2026-10-28T13:00'),
   session(3,'2026-10-29T10:00','2026-10-29T11:00'),
  ],new Date('2026-10-28T12:00'));
- assert.equal(result.minutes,180);assert.equal(result.days,28);assert.equal(result.weeklyAverage,45);
+ assert.equal(result.minutes,180);assert.equal(result.days,24);assert.equal(result.weeklyAverage,35);
  assert.equal(semesterSummary([],new Date('2027-01-01T12:00')).start.getFullYear(),2026);
  assert.equal(semesterSummary([],new Date('2026-10-01T12:00')).weeklyAverage,0);
 });
@@ -91,4 +91,19 @@ test('Never scheduled dates suppress attendance requests, automatic time and pla
  assert.equal(attendance(d,now).length,1);
  assert.equal(attendanceRequests(d,now).some(r=>r.date==='2026-10-12'),false);
  assert.equal(courseProgress(course,d,now).workTarget,7500-270);
+});
+
+
+test('Semester average keeps normal first weeks in later semesters',()=>{
+ const sessions=[{id:1,task_id:null,course_id:null,started_at:'2027-10-01T10:00',ended_at:'2027-10-01T12:00',kind:'Selbstlernen',note:''}];
+ const result=semesterSummary(sessions,new Date('2027-10-07T12:00'));
+ assert.equal(result.minutes,120);assert.equal(result.days,7);assert.equal(result.weeklyAverage,120);
+});
+
+test('Weekly comparison uses full weeks and matching weekdays including all of Tuesday',()=>{
+ const session=(id:number,started_at:string,ended_at:string)=>({id,task_id:null,course_id:null,started_at,ended_at,kind:'Selbstlernen',note:''});
+ const sessions=[session(1,'2026-10-26T10:00','2026-10-26T12:00'),session(2,'2026-10-27T18:00','2026-10-27T20:00'),session(3,'2026-10-30T10:00','2026-10-30T14:00'),session(4,'2026-11-02T10:00','2026-11-02T12:00')];
+ const result=weekComparison(sessions,new Date('2026-11-02T00:00'),new Date('2026-11-03T12:00'));
+ assert.equal(result.full,-75);assert.equal(result.toDay,-50);
+ assert.equal(weekComparison([],new Date('2026-11-02T00:00')).full,null);
 });
