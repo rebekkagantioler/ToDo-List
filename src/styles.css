@@ -535,3 +535,15 @@ html[data-theme=dark] .scenic-focus{background:linear-gradient(#152c3266,#172e34
 
 .dashboard-summary{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media(max-width:640px){.dashboard-summary{grid-template-columns:1fr}}
+
+.semester-week-navigation{margin:0;gap:4px}
+.semester-chart-caption{font-size:12px;margin:0 0 24px}
+.semester-week-chart{display:flex;gap:16px;overflow-x:auto;padding-bottom:8px}
+.semester-week-column{flex:1;min-width:105px;text-align:center;padding:10px 8px;border-radius:12px}
+.semester-week-column.current{background:var(--soft)}
+.semester-week-column>strong{display:block;font-size:12px;font-weight:500;font-variant-numeric:tabular-nums;margin-bottom:12px}
+.semester-week-track{height:150px;display:flex;align-items:flex-end;justify-content:center;border-bottom:1px solid var(--line)}
+.semester-week-track i{display:block;width:36px;background:var(--teal);border-radius:6px 6px 0 0}
+.semester-week-column>b{display:block;font-size:12px;margin:12px 0 6px}
+.semester-week-column>small{display:block;font-size:10px;color:var(--muted);line-height:1.6}
+@media(max-width:640px){.semester-week-chart{gap:6px}.semester-week-column{min-width:95px}.semester-week-track{height:120px}.semester-week-navigation .text-btn{font-size:11px}}

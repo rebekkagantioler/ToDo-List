@@ -98,3 +98,17 @@ export function weekComparison(sessions:Session[],first:Date,now=new Date()){
  const percent=(current:number,previous:number)=>previous?Math.round((current/previous-1)*100):null;
  return {full:percent(sum(values,'current'),sum(values,'previous')),toDay:percent(sum(values.slice(0,cutoff+1),'current'),sum(values.slice(0,cutoff+1),'previous')),weekday:now.toLocaleDateString('de-DE',{weekday:'long'})};
 }
+
+export function semesterWeeks(sessions:Session[],now=new Date()){
+ const {start}=semesterSummary([],now);
+ const first=new Date(start);first.setDate(first.getDate()-(first.getDay()+6)%7);
+ const weeks:{start:Date;end:Date;minutes:number}[]=[];
+ for(const day=new Date(first);day<=now;day.setDate(day.getDate()+7)){
+  const end=new Date(day);end.setDate(end.getDate()+7);
+  const from=Math.max(start.getTime(),day.getTime()),until=Math.min(end.getTime(),now.getTime());
+  const minutes=sessions.reduce((sum,s)=>sum+Math.max(0,Math.min(until,new Date(s.ended_at).getTime())-Math.max(from,new Date(s.started_at).getTime()))/60000,0);
+  const last=new Date(end);last.setDate(last.getDate()-1);
+  weeks.push({start:new Date(Math.max(start.getTime(),day.getTime())),end:last,minutes});
+ }
+ return weeks;
+}

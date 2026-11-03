@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { attendance, attendanceKey, attendanceRequests, courseProgress, dailyMinutes, semesterSummary, weekComparison, exclusionKey, lastOccurrence, occurrenceDates } from '../src/statistics';
+import { attendance, attendanceKey, attendanceRequests, courseProgress, dailyMinutes, semesterSummary, semesterWeeks, weekComparison, exclusionKey, lastOccurrence, occurrenceDates } from '../src/statistics';
 import type { AppData, Course } from '../src/types';
 const course:Course={id:1,name:'Mathe',code:'M',semester:'WS',ects:5,hours_per_ects:25,color:'#123456',description:''};
 const data=():AppData=>({courses:[course],tasks:[],blocks:[],settings:[],sessions:[],recurring:[{id:1,course_id:1,title:'Vorlesung',weekday:1,start_time:'09:00',end_time:'10:30',starts_on:'2026-10-05',ends_on:'2026-10-26',auto_track:1}]});
@@ -106,4 +106,16 @@ test('Weekly comparison uses full weeks and matching weekdays including all of T
  const result=weekComparison(sessions,new Date('2026-11-02T00:00'),new Date('2026-11-03T12:00'));
  assert.equal(result.full,-75);assert.equal(result.toDay,-50);
  assert.equal(weekComparison([],new Date('2026-11-02T00:00')).full,null);
+});
+
+
+test('Semester weekly bars clip at semester start and now and split across Monday',()=>{
+ const session=(id:number,started_at:string,ended_at:string)=>({id,task_id:null,course_id:null,started_at,ended_at,kind:'Selbstlernen',note:''});
+ const sessions=[session(1,'2026-09-30T23:00','2026-10-01T01:00'),session(2,'2026-10-04T23:30','2026-10-05T00:30'),session(3,'2026-10-06T11:00','2026-10-06T13:00')];
+ const now=new Date('2026-10-06T12:00'),weeks=semesterWeeks(sessions,now);
+ assert.equal(weeks.length,2);assert.deepEqual(weeks.map(w=>w.minutes),[90,90]);
+ assert.equal(weeks[0].start.getDate(),1);assert.equal(weeks[0].end.getDate(),4);
+ assert.equal(weeks[1].start.getDate(),5);
+ assert.equal(weeks.reduce((sum,w)=>sum+w.minutes,0),semesterSummary(sessions,now).minutes);
+ assert.equal(semesterWeeks([],now).length,2);
 });
