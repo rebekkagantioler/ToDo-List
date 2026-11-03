@@ -14,3 +14,9 @@ export function elapsedLabel(milliseconds:number){
  const minutes=Math.floor(seconds/60);
  return minutes<60?`${minutes}:${String(seconds%60).padStart(2,'0')}`:`${Math.floor(minutes/60)}:${String(minutes%60).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
 }
+
+export function backdatedTimer(startedAt:string,taskId:number|null=null,courseId:number|null=null,now=Date.now()):Omit<ActiveTimer,'id'>{
+ const start=new Date(startedAt).getTime();
+ if(!Number.isFinite(start)||start>now)throw new Error('Bitte einen gültigen Beginn eingeben, der nicht in der Zukunft liegt.');
+ return {taskId,courseId,startedAt:new Date(start).toISOString()};
+}

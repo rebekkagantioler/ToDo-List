@@ -49,10 +49,11 @@ export function useTimer(onError:(message:string)=>void,onSaved:()=>Promise<void
   catch(e){onError(e instanceof Error?e.message:'Timer konnte nicht gespeichert werden.')}
   finally{locked.current=false;setBusy(false);void sync().catch(()=>{})}
  };
- const setTimer=(next:(Omit<ActiveTimer,'id'>&{id?:number})|null)=>{void run(async()=>{
+ const setTimer=async(next:(Omit<ActiveTimer,'id'>&{id?:number})|null)=>{let saved=false;await run(async()=>{
   if(current.current?.stoppedAt&&next)throw new Error('Bitte zuerst die angehaltene Zeit speichern.');
-  await write(next?newTimer(next):null);
- })};
+  if(current.current&&next&&!next.id)throw new Error('Es läuft bereits ein Timer. Bitte diesen zuerst stoppen.');
+  await write(next?newTimer(next):null);saved=true;
+ });return saved};
  const stopTimer=()=>run(async()=>{
   if(!current.current)return;
   const stopped=stoppedTimer(current.current);
