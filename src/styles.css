@@ -482,3 +482,53 @@ html[data-theme=dark] .scenic-focus{background:linear-gradient(#152c3266,#172e34
  .course-sort-controls .course-drag-handle{min-width:44px;min-height:44px}
  .course-sort-controls{top:5px;right:6px}
 }
+
+/* Compact semester checklists: one line per date, details on demand. */
+.content:has(.attendance-overview){max-width:1600px}
+.attendance-overview .page-heading{margin-bottom:12px}
+.attendance-overview>.attendance-hint{margin:8px 0 20px}
+.attendance-overview .attendance-section{margin:22px 0 30px}
+.attendance-overview .attendance-section>h2{font-size:17px;margin:0 0 14px}
+.attendance-overview .attendance-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+.attendance-overview .attendance-card{padding:15px 16px 10px;border-radius:10px}
+.attendance-overview .attendance-card header small{font-size:10px}
+.attendance-overview .attendance-card h3{font-size:16px;line-height:1.3;margin:6px 0 12px}
+.attendance-overview .attendance-totals{gap:12px;font-size:11px;flex-wrap:wrap}
+.attendance-overview .attendance-totals b{display:inline;font-size:13px;margin:0;color:var(--ink)}
+.attendance-overview .attendance-totals .has-absences,.attendance-overview .attendance-totals .has-absences b{color:#bc4545}
+.attendance-overview .attendance-progress{height:4px;margin:10px 0}
+.attendance-overview .attendance-budget{font-size:11px;line-height:1.5;margin:8px 0 10px}
+.attendance-overview .attendance-budget small{font-size:10px;margin-top:2px}
+.attendance-overview .attendance-dates{gap:0;border-top:1px solid var(--line);padding-top:6px}
+.compact-attendance-date{display:flex;align-items:center;gap:9px;min-height:29px;padding:2px 0}
+.compact-attendance-date .compact-attendance-check{width:22px;height:22px;min-width:22px;border-radius:4px;flex-shrink:0}
+.compact-empty-box{width:10px;height:10px;border:1px solid currentColor;border-radius:1px}
+.compact-attendance-date-label{background:none;padding:3px 0;font-size:12px;line-height:1.5;text-align:left;font-variant-numeric:tabular-nums;white-space:nowrap}
+.compact-attendance-date-label:hover{text-decoration:underline;text-underline-offset:3px}
+.compact-attendance-date-label:focus-visible{outline:2px solid var(--teal);outline-offset:2px;border-radius:3px}
+.compact-canceled-mark{width:22px;text-align:center;color:var(--muted);font-size:15px;flex-shrink:0}
+.compact-attendance-date.canceled .compact-attendance-date-label{text-decoration:line-through;color:var(--muted)}
+.compact-attendance-date>small{font-size:9px;color:var(--muted);margin-left:auto}
+.compact-attendance-date.missed .compact-attendance-date-label{color:#bc4545}
+.compact-attendance-date>.save-error{font-size:10px;white-space:normal}
+.attendance-overview .attendance-policy{border-top:1px solid var(--line);border-bottom:0;margin:8px 0 0;padding:9px 0 0;font-size:10px}
+.attendance-detail p{font-size:13px;line-height:1.5}.attendance-detail-actions{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0}
+.attendance-detail .attendance-date-planning{border-top:1px solid var(--line);margin-top:20px;padding-top:12px}
+.attendance-detail .attendance-date-planning button{font-size:12px;min-height:44px}
+@media(max-width:640px){
+ .attendance-overview .attendance-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ .attendance-overview .attendance-card{padding:12px 10px 8px}
+ .attendance-overview .attendance-card h3{font-size:14px}
+ .attendance-overview .attendance-totals{gap:4px 8px;font-size:10px}
+ .attendance-overview .attendance-totals b{font-size:11px}
+ .compact-attendance-date{gap:6px;min-height:40px;flex-wrap:wrap}
+ .compact-attendance-date-label{font-size:11px;min-height:36px;display:flex;align-items:center;flex:1}
+ .compact-attendance-date .compact-attendance-check{width:28px;height:28px;min-width:28px}
+ .compact-attendance-date>small{font-size:9px;margin:0 0 0 34px;flex-basis:100%}
+ .compact-canceled-mark{width:28px}
+ .attendance-overview .attendance-policy summary{line-height:1.5;min-height:36px}
+ .attendance-overview .attendance-policy label{flex-wrap:wrap}
+ .attendance-overview .attendance-policy input[type=number]{width:100%}
+ .attendance-overview .attendance-policy .secondary{width:100%;padding:9px 5px;font-size:10px}
+}
+@media(max-width:359px){.attendance-overview .attendance-grid{grid-template-columns:1fr}}
