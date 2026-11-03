@@ -547,3 +547,7 @@ html[data-theme=dark] .scenic-focus{background:linear-gradient(#152c3266,#172e34
 .semester-week-column>b{display:block;font-size:12px;margin:12px 0 6px}
 .semester-week-column>small{display:block;font-size:10px;color:var(--muted);line-height:1.6}
 @media(max-width:640px){.semester-week-chart{gap:6px}.semester-week-column{min-width:95px}.semester-week-track{height:120px}.semester-week-navigation .text-btn{font-size:11px}}
+
+.update-status{font-size:14px;line-height:1.6;color:var(--muted)}
+.update-status.available,.update-status.current{color:var(--teal)}
+.update-status.available{font-weight:600}

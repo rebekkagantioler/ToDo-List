@@ -317,6 +317,22 @@ function SemesterWeekChart({sessions}:{sessions:Session[]}){
 }
 function SettingsView({data,exportData,importData}:{data:AppData;exportData:()=>void;importData:(f:File)=>void}){
  const [updating,setUpdating]=useState(false),[updateError,setUpdateError]=useState('');
+ const [updateStatus,setUpdateStatus]=useState<'checking'|'current'|'available'|'error'>('checking');
+ const checkSequence=useRef(0);
+ async function checkUpdate(){
+  const sequence=++checkSequence.current;setUpdateStatus('checking');
+  try{
+   const url=new URL(window.location.href);url.hash='';url.searchParams.set('update-check',String(Date.now()));
+   const response=await fetch(url,{cache:'no-store',signal:AbortSignal.timeout(10000)});
+   if(!response.ok)throw new Error('Prüfung fehlgeschlagen');
+   const document=new DOMParser().parseFromString(await response.text(),'text/html');
+   const latest=document.querySelector('meta[name="app-build"]')?.getAttribute('content');
+   if(!latest||!Number.isFinite(Date.parse(latest)))throw new Error('Version fehlt');
+   if(sequence===checkSequence.current)setUpdateStatus(Date.parse(latest)>Date.parse(__APP_BUILD__)?'available':'current');
+  }catch{if(sequence===checkSequence.current)setUpdateStatus('error')}
+ }
+ useEffect(()=>{void checkUpdate();return ()=>{checkSequence.current++}},[]);
+
  async function updateApp(){
   setUpdating(true);setUpdateError('');
   try{
@@ -326,7 +342,7 @@ function SettingsView({data,exportData,importData}:{data:AppData;exportData:()=>
    window.location.replace(url.href);
   }catch(error){setUpdateError(error instanceof Error?error.message:'Aktualisierung fehlgeschlagen.');setUpdating(false)}
  }
- return <><div className="page-heading"><div><p className="eyebrow">Arbeitsplatz</p><h1>Einstellungen</h1><p className="muted">{cloud?'Daten werden in deinem Supabase-Konto gespeichert.':'Daten bleiben lokal auf diesem Gerät gespeichert.'}</p></div></div><div className="settings-grid"><Panel title="App aktualisieren"><p className="muted">Neue Änderungen laden, sobald die Veröffentlichung auf GitHub abgeschlossen ist.</p><div className="setting-actions"><button className="primary" disabled={updating} onClick={()=>void updateApp()}><TimerReset size={16}/>{updating?'Wird geladen …':'App aktualisieren'}</button></div><p className="app-version">Version vom {new Date(__APP_BUILD__).toLocaleString('de-DE')}</p>{updateError&&<p role="alert" className="muted">{updateError}</p>}</Panel><Panel title="Datensicherung"><p className="muted">Exportiere alle Kurse, Aufgaben, Zeit- und Kalenderdaten als JSON oder stelle ein Backup wieder her.</p><div className="setting-actions"><button className="secondary" onClick={exportData}><ArrowDownToLine size={16}/>JSON exportieren</button><label className="secondary file-btn"><ArrowUpFromLine size={16}/>JSON importieren<input type="file" accept="application/json" onChange={e=>e.target.files?.[0]&&importData(e.target.files[0])}/></label></div></Panel><Panel title="Hinweise"><div className="info-list"><div><Archive size={18}/><span><b>{cloud?'Supabase-Datenbank':'Lokale Datenbank'}</b><small>{cloud?'Deine Daten sind über die Anmeldung deinem Konto zugeordnet.':'Die SQLite-Datei liegt im Projektordner und wird nicht synchronisiert.'}</small></span></div><div><Clock3 size={18}/><span><b>Timer-Wiederherstellung</b><small>{cloud?'Laufende Timer werden mit deinem Konto synchronisiert. Du kannst sie auf einem anderen Gerät pausieren oder stoppen. Dafür benötigen beide Geräte Internet.':'Ein laufender Timer wird über Seitenwechsel und Reloads hinweg wieder aufgenommen.'}</small></span></div></div></Panel></div></>}
+ return <><div className="page-heading"><div><p className="eyebrow">Arbeitsplatz</p><h1>Einstellungen</h1><p className="muted">{cloud?'Daten werden in deinem Supabase-Konto gespeichert.':'Daten bleiben lokal auf diesem Gerät gespeichert.'}</p></div></div><div className="settings-grid"><Panel title="App aktualisieren"><p className={`update-status ${updateStatus}`} role="status">{updateStatus==='checking'?'Suche nach Updates …':updateStatus==='available'?'Ein neues Update ist verfügbar.':updateStatus==='current'?'Deine App ist auf dem neuesten Stand.':'Updates konnten gerade nicht geprüft werden. Bitte prüfe deine Internetverbindung und versuche es erneut.'}</p><div className="setting-actions"><button className="secondary" disabled={updateStatus==='checking'||updating} onClick={()=>void checkUpdate()}>Nach Updates suchen</button><button className="primary" disabled={updating} onClick={()=>void updateApp()}><TimerReset size={16}/>{updating?'Wird geladen …':'App aktualisieren'}</button></div><p className="app-version">Version vom {new Date(__APP_BUILD__).toLocaleString('de-DE')}</p>{updateError&&<p role="alert" className="muted">{updateError}</p>}</Panel><Panel title="Datensicherung"><p className="muted">Exportiere alle Kurse, Aufgaben, Zeit- und Kalenderdaten als JSON oder stelle ein Backup wieder her.</p><div className="setting-actions"><button className="secondary" onClick={exportData}><ArrowDownToLine size={16}/>JSON exportieren</button><label className="secondary file-btn"><ArrowUpFromLine size={16}/>JSON importieren<input type="file" accept="application/json" onChange={e=>e.target.files?.[0]&&importData(e.target.files[0])}/></label></div></Panel><Panel title="Hinweise"><div className="info-list"><div><Archive size={18}/><span><b>{cloud?'Supabase-Datenbank':'Lokale Datenbank'}</b><small>{cloud?'Deine Daten sind über die Anmeldung deinem Konto zugeordnet.':'Die SQLite-Datei liegt im Projektordner und wird nicht synchronisiert.'}</small></span></div><div><Clock3 size={18}/><span><b>Timer-Wiederherstellung</b><small>{cloud?'Laufende Timer werden mit deinem Konto synchronisiert. Du kannst sie auf einem anderen Gerät pausieren oder stoppen. Dafür benötigen beide Geräte Internet.':'Ein laufender Timer wird über Seitenwechsel und Reloads hinweg wieder aufgenommen.'}</small></span></div></div></Panel></div></>}
 
 function HomeworkSchedule({embedded=false,course,data,mutate}:{embedded?:boolean;course:Course;data:AppData;mutate:any}){
  const Container=embedded?'section':'details',Heading=embedded?'h2':'summary';
