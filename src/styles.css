@@ -321,7 +321,7 @@ html[data-theme=dark] .week-current .task-week-heading :is(h2,h3),html[data-them
 button.chart-day{padding:0;background:transparent;border-radius:8px;color:inherit}button.chart-day:hover{background:var(--soft)}button.chart-day:focus-visible{outline:2px solid var(--teal);outline-offset:4px}.day-statistics{max-width:520px}.day-statistics-list{display:grid;gap:0}.day-statistics-entry{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:16px 0;border-bottom:1px solid var(--line)}.day-statistics-entry>div{min-width:0;overflow-wrap:anywhere}.day-statistics-entry> b{white-space:nowrap;font-size:13px;color:var(--teal)}.day-statistics-entry strong{font-size:14px}.day-statistics-entry p,.day-statistics-entry small{font-size:12px;color:var(--muted);margin:6px 0}.day-statistics>.muted{font-size:12px;line-height:1.6}
 
 /* Fokusplatz im Abendlicht */
-.content:has(.scenic-focus){max-width:none;padding:0;min-height:calc(100vh - 75px);background:#d2ad7b url('./assets/focus-sunset.jpg') center center/cover no-repeat}
+.content:has(.scenic-focus){max-width:none;padding:0;min-height:calc(100vh - 75px);background-color:#f1e5d5;background-image:url('./assets/focus-sunset.jpg'),url('data:image/jpeg;base64,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');background-position:center center;background-size:cover;background-repeat:no-repeat}
 .scenic-focus{--ink:#203632;--muted:#4f6059;--line:#ffffff55;--panel:#fff7e9;--soft:#f8efdf;--teal:#247568;--teal-dark:#195b51;max-width:none;min-height:calc(100vh - 75px);padding:24px clamp(22px,5vw,90px) 40px;color:var(--ink);background:linear-gradient(180deg,#fff5e9a6 0%,#fff1d74d 65%,#42281526 100%)}
 .scenic-focus>.page-heading{margin:0 0 26px;align-items:center;gap:16px}.scenic-focus>.page-heading h1{font-size:15px;letter-spacing:.1px;font-family:inherit;font-weight:500}.scenic-focus .secondary{background:#fff8edc9;border-color:#ffffff90;color:#244a41;backdrop-filter:blur(12px)}
 .scenic-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:clamp(24px,6vw,100px);min-height:570px;align-items:start}.daily-saying{padding:40px 0 0;max-width:440px;text-shadow:0 1px 20px #fff5df}.daily-saying>p{text-transform:uppercase;letter-spacing:2px;font-size:11px;font-weight:700;margin:0 0 26px}.quote-dash{display:block;width:32px;height:2px;background:#47635b;margin-bottom:25px}.daily-saying blockquote{font:400 clamp(30px,3.1vw,52px)/1.23 Georgia,serif;letter-spacing:-.8px;margin:0 0 25px;overflow-wrap:anywhere;text-wrap:pretty}.daily-saying>svg{color:#3c6556;transform:rotate(20deg)}
@@ -544,7 +544,7 @@ html[data-theme=dark] .scenic-focus{background:linear-gradient(#152c3266,#172e34
 .semester-week-column>strong{display:block;font-size:12px;font-weight:500;font-variant-numeric:tabular-nums;margin-bottom:12px}
 .semester-week-track{height:150px;display:flex;align-items:flex-end;justify-content:center;gap:6px;border-bottom:1px solid var(--line);padding-top:20px;box-sizing:content-box}
 .semester-week-bar{position:relative;width:44px;max-width:44%;background:var(--teal);border-radius:6px 6px 0 0;flex-shrink:0}
-.semester-week-bar.lecture{background:var(--blue)}
+.semester-week-bar.lecture-fill{color:#17333a}
 .semester-week-bar span{position:absolute;top:7px;left:50%;transform:translateX(-50%);color:white;font-size:9px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .semester-week-bar span.above{top:auto;bottom:calc(100% + 5px);color:var(--ink)}
 .semester-week-legend{margin-bottom:16px}
@@ -555,3 +555,46 @@ html[data-theme=dark] .scenic-focus{background:linear-gradient(#152c3266,#172e34
 .update-status{font-size:14px;line-height:1.6;color:var(--muted)}
 .update-status.available,.update-status.current{color:var(--teal)}
 .update-status.available{font-weight:600}
+
+/* Let focus controls determine the row height on tablets and desktops too. */
+.scenic-focus{height:auto;grid-template-rows:auto auto auto;align-content:start;gap:28px}
+.scenic-layout{min-height:min-content;align-items:center}
+.scenic-focus .focus-studio{min-height:min-content;padding:8px 0 20px}
+.scenic-focus .focus-clock{width:clamp(180px,28vw,310px)}
+.scenic-focus .focus-selection{width:100%;display:flex;flex-direction:column;align-items:stretch;gap:12px}
+.scenic-focus .focus-selection label{display:flex;flex-direction:column;min-width:0;gap:7px;flex:auto;width:100%}
+.scenic-focus .focus-selection select{width:100%;max-width:100%;min-height:44px;font-size:16px}
+.focus-mode{display:flex;gap:6px;padding:4px;border:1px solid #ffffffa0;background:#fff7e6bd;border-radius:12px}
+.focus-mode button{flex:1;padding:10px 8px;font-size:12px;line-height:1.4;border-radius:9px;background:transparent;color:#25473d;min-height:44px}
+.focus-mode button[aria-pressed=true]{background:#247568;color:white}
+.focus-mode button:focus-visible{outline:2px solid #247568;outline-offset:2px}
+.scenic-focus .recent-focus{position:relative;margin-top:0}
+.semester-week-track{padding-top:0;height:170px}
+.semester-week-stack{display:flex;flex-direction:column-reverse;width:56px;max-width:100%;border-radius:6px 6px 0 0;overflow:hidden}
+.semester-week-stack .semester-week-bar{width:100%;max-width:none;border-radius:0;flex-shrink:0}
+.semester-week-stack .semester-week-bar span{top:50%;transform:translate(-50%,-50%);font-size:10px}
+.semester-week-stack .lecture-fill span{color:#17333a}
+@media(max-width:640px){.scenic-focus .focus-clock{width:min(76vw,280px)}.semester-week-track{height:140px}}
+
+/* Keep the task picker part of the quiet, warm focus setting. */
+.scenic-focus .focus-selection{padding:16px;border:1px solid #fffaf0c9;border-radius:20px;background:linear-gradient(145deg,#fff9edcf,#fff5e6a3);box-shadow:0 8px 28px #49351e0c;backdrop-filter:blur(14px);gap:16px}
+.scenic-focus .focus-mode{gap:5px;padding:4px;background:#47665c0c;border:1px solid #47665c12;border-radius:13px}
+.scenic-focus .focus-mode button{display:flex;align-items:center;justify-content:center;gap:7px;color:#476057;font-size:12px;font-weight:500;padding:11px 8px;border-radius:10px}
+.scenic-focus .focus-mode button svg{flex-shrink:0}
+.scenic-focus .focus-mode button[aria-pressed=true]{background:#fffaf0;color:#205c50;box-shadow:0 2px 8px #49351e12}
+.scenic-focus .focus-selection label{font-size:11px;font-weight:500;color:#476057;gap:8px}
+.scenic-focus .focus-selection select{background:#fffaf0bf;border:1px solid #54716626;box-shadow:none;border-radius:12px;color:#25473d;font-size:14px;min-height:48px;padding:12px}
+.scenic-focus .focus-selection select:focus-visible{outline:2px solid #247568;outline-offset:3px}
+.scenic-focus .focus-selection small{font-weight:400;line-height:1.5}
+@media(max-width:640px){.scenic-focus .focus-selection{padding:13px;border-radius:16px}.scenic-focus .focus-selection select{font-size:16px}.scenic-focus .focus-mode button{font-size:11px}}
+
+.private-category-settings summary{cursor:pointer;font-size:14px;font-weight:500;padding:8px 0}
+.private-category-settings p{font-size:12px;line-height:1.6}
+.private-category-list{display:grid;margin:18px 0}
+.private-category-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.private-category-row strong{flex:1;min-width:120px;font-size:13px}
+.private-category-row label{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+.private-category-row input{width:16px;height:16px;accent-color:var(--teal)}
+.private-category-add{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
+.private-category-add label{display:grid;gap:7px;font-size:12px;flex:1;min-width:150px}
+.legacy-private-records{border-top:1px solid var(--line);padding-top:12px;margin-top:20px}

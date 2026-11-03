@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { courseAreaKey, isPrivateCourse, statisticsData } from '../src/courseArea';
+import { courseAreaKey, isPrivateCourse, statisticsData, privateTaskView, preservePrivateCourseTask } from '../src/courseArea';
 import { attendance, semesterSummary, semesterWeeks } from '../src/statistics';
 import type { AppData, Course, Task } from '../src/types';
 const course=(id:number,name:string):Course=>({id,name,code:'',semester:'WS',ects:1,hours_per_ects:25,color:'#123456',description:''});
@@ -21,4 +21,24 @@ test('Private course task times, direct times, attendance and completions are ex
  assert.equal(semesterSummary(filtered.sessions,now).minutes,120);
  assert.equal(semesterWeeks(filtered.sessions,now).reduce((sum,w)=>sum+w.minutes,0),120);
  assert.deepEqual(d,before);
+});
+
+
+test('Private category controls both new tasks and historical course attendance',()=>{
+ const d=fixture();
+ d.tasks.push({id:2,area:'Privat',type:'Kapellmeisterkurs',course_id:null} as Task);
+ d.sessions.push({...d.sessions[0],id:5,task_id:2});
+ assert.deepEqual(statisticsData(d).sessions.map(s=>s.id),[3,4]);
+ d.settings.push({key:'private-categories',value:JSON.stringify([{name:'Kapellmeisterkurs',includeInStatistics:true}])});
+ assert.equal(statisticsData(d).sessions.length,5);
+ assert.equal(statisticsData(d).recurring.length,1);
+});
+test('Legacy course tasks display as private categories while saving preserves linked history',()=>{
+ const d=fixture();d.tasks[0].area='Universität';d.tasks[0].type='Hausaufgabe';
+ const original=d.tasks[0],displayed=privateTaskView(original,d);
+ assert.equal(displayed.area,'Privat');assert.equal(displayed.type,'Kapellmeisterkurs');
+ const saved=preservePrivateCourseTask({...displayed,title:'Weiterüben',status:'Offen'},original,d);
+ assert.equal(saved.title,'Weiterüben');assert.equal(saved.status,'Offen');
+ assert.equal(saved.course_id,1);assert.equal(saved.area,'Universität');assert.equal(saved.type,'Hausaufgabe');
+ assert.equal(original.status,'Erledigt');
 });
