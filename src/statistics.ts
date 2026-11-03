@@ -4,9 +4,14 @@ export const isLecture=(s:Session)=>['Vorlesung','Übung','Lehrveranstaltung'].i
 export const duration=(s:Session)=>Math.max(0,(new Date(s.ended_at).getTime()-new Date(s.started_at).getTime())/60000);
 const key=(d:Date)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 export const exclusionKey=(eventId:number)=>`lecture-exclusions-${eventId}`;
-export function excludedDates(data:AppData,eventId:number):string[]{
- try{const value=JSON.parse(data.settings.find(s=>s.key===exclusionKey(eventId))?.value||'[]');return Array.isArray(value)?value.filter((d:unknown)=>typeof d==='string'):[]}catch{return []}
+export const unplannedKey=(eventId:number)=>`lecture-unplanned-${eventId}`;
+function dateSetting(data:AppData,settingKey:string):string[]{
+ try{const value=JSON.parse(data.settings.find(s=>s.key===settingKey)?.value||'[]');return Array.isArray(value)?value.filter((d:unknown)=>typeof d==='string'):[]}catch{return []}
 }
+export const canceledDates=(data:AppData,eventId:number)=>dateSetting(data,exclusionKey(eventId));
+export const unplannedDates=(data:AppData,eventId:number)=>dateSetting(data,unplannedKey(eventId));
+// Both statuses suppress calendar occurrences, attendance requests and homework.
+export const excludedDates=(data:AppData,eventId:number)=>Array.from(new Set([...canceledDates(data,eventId),...unplannedDates(data,eventId)]));
 export function occurrenceDates(event:RecurringEvent):string[]{
  if(!event.ends_on)return [];
  const day=new Date(`${event.starts_on}T00:00`),last=new Date(`${event.ends_on}T23:59:59`),dates:string[]=[];

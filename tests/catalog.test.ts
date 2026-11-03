@@ -9,3 +9,9 @@ test('Catalog exports only course metadata and meetings, never private course de
  assert.equal(searchCatalog(entries,'geometrie').length,0);assert.equal(searchCatalog(entries,'').length,1);
  data.settings=data.settings.filter(s=>s.key!==courseVisibilityKey(4));assert.equal(catalogEntries(data).length,0);assert.equal(courseIsVisible(data,4),false);data.settings.push({key:courseVisibilityKey(4),value:'false'});assert.equal(catalogEntries(data).length,0);
 });
+
+test('Course catalog preserves the distinction between canceled and never scheduled dates',()=>{
+ const data:AppData={courses:[{id:4,name:'UE Analysis',code:'UE',semester:'WS',ects:3,hours_per_ects:25,color:'#123456',description:''}],tasks:[],blocks:[],sessions:[],recurring:[{id:2,course_id:4,title:'UE',weekday:1,start_time:'10:00',end_time:'11:00',starts_on:'2026-10-01',ends_on:'2026-12-01',auto_track:1}],settings:[{key:courseVisibilityKey(4),value:'true'},{key:'lecture-exclusions-2',value:'["2026-10-26"]'},{key:'lecture-unplanned-2',value:'["2026-11-02"]'}]};
+ const event=catalogEntries(data)[0].payload.events[0];
+ assert.deepEqual(event.excluded,['2026-10-26']);assert.deepEqual(event.unplanned,['2026-11-02']);
+});

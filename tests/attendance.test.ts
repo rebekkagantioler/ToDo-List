@@ -24,3 +24,11 @@ test('Unknown allowance stays unknown and open-ended series are explicitly bound
  const s=courseAttendance(d,course,new Date('2026-10-13T12:00'));
  assert.equal(s.remaining,null);assert.equal(s.openEnded,true);assert.equal(s.total,2);
 });
+
+test('Never scheduled dates are hidden, cancellations stay visible; both are excluded from totals',()=>{
+ const d=data();d.settings=[{key:'lecture-unplanned-1',value:'["2026-10-12"]'},{key:exclusionKey(1),value:'["2026-10-19"]'},{key:attendanceKey(1,'2026-10-12'),value:'no'}];
+ const s=courseAttendance(d,course,new Date('2026-11-03T12:00'));
+ assert.equal(s.rows.length,4);assert.equal(s.total,3);assert.equal(s.absent,0);
+ assert.equal(s.rows.some(r=>r.date==='2026-10-12'),false);
+ assert.equal(s.rows.find(r=>r.date==='2026-10-19')?.canceled,true);
+});

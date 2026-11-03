@@ -2,6 +2,7 @@ import type { AppData } from './types';
 import { cloud } from './cloud';
 import { enrichData } from './data';
 import { catalogEntries, type CourseCatalogEntry, type CourseTemplate } from './catalog';
+import { migrateLegacyCancellations } from './attendanceMigration';
 import { homeworkPlan } from './homework';
 const tables:Record<string,string>={courses:'courses',tasks:'tasks',sessions:'work_sessions',blocks:'planned_blocks',recurring:'recurring_events',settings:'settings'};
 const columns:Record<string,string[]>={courses:['name','code','semester','ects','hours_per_ects','color','description'],tasks:['title','description','area','type','course_id','deadline','estimate_minutes','priority','status','tracking','completed_at'],sessions:['task_id','course_id','started_at','ended_at','kind','note'],blocks:['task_id','course_id','title','starts_at','ends_at','kind'],recurring:['course_id','title','weekday','start_time','end_time','starts_on','ends_on','auto_track'],settings:['key','value']};
@@ -12,7 +13,7 @@ async function readData(): Promise<AppData> {
  return enrichData(data as AppData);
 }
 export async function loadData():Promise<AppData>{
- const data=await readData();const plan=homeworkPlan(data);
+ const data=await migrateLegacyCancellations(await readData(),(key,value)=>api(`/settings/${key}`,'PUT',{value}));const plan=homeworkPlan(data);
  for(const task of plan.create){const saved=await api('/tasks','POST',task);data.tasks.push({...task,...saved});}
  for(const task of plan.update){await api(`/tasks/${task.id}`,'PUT',task);data.tasks=data.tasks.map(t=>t.id===task.id?task:t);}
  for(const task of plan.remove){await api(`/tasks/${task.id}`,'DELETE');data.tasks=data.tasks.filter(t=>t.id!==task.id);data.blocks=data.blocks.filter(b=>b.task_id!==task.id);}

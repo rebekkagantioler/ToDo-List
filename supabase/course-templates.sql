@@ -24,6 +24,7 @@ BEGIN
  FOR e IN SELECT value FROM jsonb_array_elements(template->'events') LOOP
  INSERT INTO recurring_events(course_id,title,weekday,start_time,end_time,starts_on,ends_on,auto_track) VALUES(course_id,e->>'title',(e->>'weekday')::int,e->>'start_time',e->>'end_time',e->>'starts_on',e->>'ends_on',coalesce((e->>'auto_track')::int,0)) RETURNING id INTO event_id;
  INSERT INTO settings(key,value) VALUES('lecture-exclusions-'||event_id,coalesce(e->'excluded','[]'::jsonb)::text);
+ INSERT INTO settings(key,value) VALUES('lecture-unplanned-'||event_id,coalesce(e->'unplanned','[]'::jsonb)::text);
  END LOOP;
  RETURN jsonb_build_object('id',course_id);
 END; $$;
@@ -51,9 +52,9 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$
    'course',jsonb_build_object('name',c.name,'code',c.code,'semester',c.semester,'ects',c.ects,'hours_per_ects',c.hours_per_ects,'color',c.color,'description',''),
    'events',coalesce((SELECT jsonb_agg(jsonb_build_object(
     'title',e.title,'weekday',e.weekday,'start_time',e.start_time,'end_time',e.end_time,'starts_on',e.starts_on,'ends_on',e.ends_on,'auto_track',e.auto_track,
-    'excluded',public.catalog_exclusions(s.value)
+    'excluded',public.catalog_exclusions(s.value),'unplanned',public.catalog_exclusions(u.value)
    ) ORDER BY e.starts_on,e.weekday,e.start_time,e.title,e.id)
-   FROM public.recurring_events e LEFT JOIN public.settings s ON s.user_id=e.user_id AND s.key='lecture-exclusions-'||e.id
+   FROM public.recurring_events e LEFT JOIN public.settings s ON s.user_id=e.user_id AND s.key='lecture-exclusions-'||e.id LEFT JOIN public.settings u ON u.user_id=e.user_id AND u.key='lecture-unplanned-'||e.id
    WHERE e.user_id=c.user_id AND e.course_id=c.id),'[]'::jsonb)
   ) AS payload FROM public.courses c WHERE auth.uid() IS NOT NULL AND EXISTS (SELECT 1 FROM public.settings visibility WHERE visibility.user_id=c.user_id AND visibility.key='course-catalog-visible-'||c.id AND visibility.value='true')
  ) entry ORDER BY entry.name,entry.payload;
@@ -82,8 +83,8 @@ CREATE OR REPLACE FUNCTION public.course_catalog_payload(owner_id uuid,course_id
 LANGUAGE sql STABLE SECURITY INVOKER SET search_path=public AS $$
  SELECT jsonb_build_object(
  'course',jsonb_build_object('name',c.name,'code',c.code,'semester',c.semester,'ects',c.ects,'hours_per_ects',c.hours_per_ects,'color',c.color,'description',''),
- 'events',coalesce((SELECT jsonb_agg(jsonb_build_object('source_key',md5(e.user_id::text||':'||e.id),'title',e.title,'weekday',e.weekday,'start_time',e.start_time,'end_time',e.end_time,'starts_on',e.starts_on,'ends_on',e.ends_on,'auto_track',e.auto_track,'excluded',public.catalog_exclusions(s.value)) ORDER BY e.starts_on,e.weekday,e.start_time,e.title,e.id)
- FROM recurring_events e LEFT JOIN settings s ON s.user_id=e.user_id AND s.key='lecture-exclusions-'||e.id WHERE e.user_id=c.user_id AND e.course_id=c.id),'[]'::jsonb),
+ 'events',coalesce((SELECT jsonb_agg(jsonb_build_object('source_key',md5(e.user_id::text||':'||e.id),'title',e.title,'weekday',e.weekday,'start_time',e.start_time,'end_time',e.end_time,'starts_on',e.starts_on,'ends_on',e.ends_on,'auto_track',e.auto_track,'excluded',public.catalog_exclusions(s.value),'unplanned',public.catalog_exclusions(u.value)) ORDER BY e.starts_on,e.weekday,e.start_time,e.title,e.id)
+ FROM recurring_events e LEFT JOIN settings s ON s.user_id=e.user_id AND s.key='lecture-exclusions-'||e.id LEFT JOIN public.settings u ON u.user_id=e.user_id AND u.key='lecture-unplanned-'||e.id WHERE e.user_id=c.user_id AND e.course_id=c.id),'[]'::jsonb),
  'homework',coalesce((SELECT jsonb_agg(jsonb_strip_nulls(jsonb_build_object('source_key',md5(s.user_id::text||':'||s.key),'event_key',md5(e.user_id::text||':'||e.id),'title',v.obj->'task'->>'title','type',v.obj->'task'->>'type','starts_on',v.obj->>'starts_on','estimate_minutes',v.obj->'task'->'estimate_minutes','priority',v.obj->'task'->>'priority','tracking',v.obj->'task'->'tracking','numbering',v.obj->'numbering','submission',v.obj->'submission')) ORDER BY s.key)
  FROM settings s CROSS JOIN LATERAL (SELECT public.catalog_object(s.value) AS obj) v JOIN recurring_events e ON e.user_id=s.user_id AND e.id::text=v.obj->>'event_id' AND e.course_id=c.id
  WHERE s.user_id=c.user_id AND s.key LIKE 'homework-series-%' AND v.obj->'task'->>'course_id'=c.id::text AND coalesce(v.obj->>'deleted','false')<>'true' AND coalesce(v.obj->>'stopped','false')<>'true'),'[]'::jsonb))
@@ -136,6 +137,7 @@ BEGIN
  END IF;
  origin:=jsonb_set(origin,ARRAY['event_map',ekey],to_jsonb(eid));
  INSERT INTO settings(key,value) VALUES('lecture-exclusions-'||eid,coalesce(e->'excluded','[]'::jsonb)::text) ON CONFLICT(user_id,key) DO UPDATE SET value=excluded.value;
+ INSERT INTO settings(key,value) VALUES('lecture-unplanned-'||eid,coalesce(e->'unplanned','[]'::jsonb)::text) ON CONFLICT(user_id,key) DO UPDATE SET value=excluded.value;
  END LOOP;
  FOR h IN SELECT value FROM jsonb_array_elements(coalesce(template->'homework','[]'::jsonb)) LOOP
  eid:=(origin->'event_map'->>(h->>'event_key'))::bigint;IF eid IS NULL THEN RAISE EXCEPTION 'Aufgabenserie benötigt eine ausgewählte Einheit';END IF;

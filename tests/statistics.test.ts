@@ -84,3 +84,11 @@ test('Semester totals clip sessions at October 1 and now, average includes all c
  assert.equal(semesterSummary([],new Date('2027-01-01T12:00')).start.getFullYear(),2026);
  assert.equal(semesterSummary([],new Date('2026-10-01T12:00')).weeklyAverage,0);
 });
+
+test('Never scheduled dates suppress attendance requests, automatic time and planned time',()=>{
+ const d=confirmedData();d.settings.push({key:'lecture-unplanned-1',value:'["2026-10-12"]'});
+ const now=new Date('2026-10-18T12:00');
+ assert.equal(attendance(d,now).length,1);
+ assert.equal(attendanceRequests(d,now).some(r=>r.date==='2026-10-12'),false);
+ assert.equal(courseProgress(course,d,now).workTarget,7500-270);
+});

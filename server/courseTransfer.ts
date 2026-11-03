@@ -21,7 +21,7 @@ export function transferCourse(db:Database.Database,template:CourseTemplate,targ
    const values=[e.title,e.weekday,e.start_time,e.end_time,e.starts_on,e.ends_on||null,e.auto_track?1:0];
    const eventId=mapped||Number(db.prepare('INSERT INTO recurring_events(course_id,title,weekday,start_time,end_time,starts_on,ends_on,auto_track) VALUES(?,?,?,?,?,?,?,?)').run(id,...values).lastInsertRowid);
    if(mapped)db.prepare('UPDATE recurring_events SET title=?,weekday=?,start_time=?,end_time=?,starts_on=?,ends_on=?,auto_track=? WHERE id=? AND course_id=?').run(...values,eventId,id);
-   origin.event_map[key]=eventId;setting(`lecture-exclusions-${eventId}`,e.excluded||[]);
+   origin.event_map[key]=eventId;setting(`lecture-exclusions-${eventId}`,e.excluded||[]);setting(`lecture-unplanned-${eventId}`,e.unplanned||[]);
   }
   for(const h of template.homework||[]){
    const eventId=origin.event_map[h.event_key];if(!eventId)throw new Error('Aufgabenserie benötigt eine ausgewählte Einheit');
