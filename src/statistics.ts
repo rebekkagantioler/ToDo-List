@@ -1,3 +1,4 @@
+import type { Semester } from './semesters';
 import type { AppData, Course, RecurringEvent, Session } from './types';
 export const courseOf = (s:Session,data:AppData)=>data.tasks.find(t=>t.id===s.task_id)?.course_id??s.course_id??null;
 export const isLecture=(s:Session)=>['Vorlesung','Übung','Lehrveranstaltung'].includes(s.kind);
@@ -74,16 +75,18 @@ export function dailyMinutes(sessions:Session[],day:Date){
  return sessions.reduce((sum,s)=>sum+Math.max(0,Math.min(end.getTime(),new Date(s.ended_at).getTime())-Math.max(day.getTime(),new Date(s.started_at).getTime()))/60000,0);
 }
 
-export function semesterSummary(sessions:Session[],now=new Date()){
- const start=new Date(now.getFullYear()-(now.getMonth()<9?1:0),9,1);
- const minutes=sessions.reduce((sum,s)=>sum+Math.max(0,Math.min(now.getTime(),new Date(s.ended_at).getTime())-Math.max(start.getTime(),new Date(s.started_at).getTime()))/60000,0);
- const averageStart=new Date(start);
- // Only the initial tracking semester omits its incomplete first calendar week.
- if(start.getFullYear()===2026)averageStart.setDate(5);
- const averageMinutes=sessions.reduce((sum,s)=>sum+Math.max(0,Math.min(now.getTime(),new Date(s.ended_at).getTime())-Math.max(averageStart.getTime(),new Date(s.started_at).getTime()))/60000,0);
- // Calendar days avoid daylight-saving shifts; today counts as one day.
- const days=Math.max(0,Math.floor((Date.UTC(now.getFullYear(),now.getMonth(),now.getDate())-Date.UTC(averageStart.getFullYear(),averageStart.getMonth(),averageStart.getDate()))/86400000)+1);
- return {start,minutes,weeklyAverage:days?averageMinutes*7/days:0,days,averageStart};
+export function semesterSummary(sessions:Session[],now=new Date(),period?:Semester){
+ const start=period?new Date(`${period.start}T00:00`):new Date(now.getFullYear()-(now.getMonth()<9?1:0),9,1);
+ const end=period?new Date(`${period.end}T00:00`):new Date(start.getFullYear()+1,8,30);
+ const exclusiveEnd=new Date(end);exclusiveEnd.setDate(exclusiveEnd.getDate()+1);
+ const until=Math.min(now.getTime(),exclusiveEnd.getTime());
+ const minutes=sessions.reduce((sum,s)=>sum+Math.max(0,Math.min(until,new Date(s.ended_at).getTime())-Math.max(start.getTime(),new Date(s.started_at).getTime()))/60000,0);
+ const averageStart=period?new Date(`${period.averageStart}T00:00`):new Date(start);
+ if(!period&&start.getFullYear()===2026)averageStart.setDate(5);
+ const averageMinutes=sessions.reduce((sum,s)=>sum+Math.max(0,Math.min(until,new Date(s.ended_at).getTime())-Math.max(averageStart.getTime(),new Date(s.started_at).getTime()))/60000,0);
+ const lastDay=now<end?now:end;
+ const days=Math.max(0,Math.floor((Date.UTC(lastDay.getFullYear(),lastDay.getMonth(),lastDay.getDate())-Date.UTC(averageStart.getFullYear(),averageStart.getMonth(),averageStart.getDate()))/86400000)+1);
+ return {start,end,until,minutes,weeklyAverage:days?averageMinutes*7/days:0,days,averageStart};
 }
 
 export function weekComparison(sessions:Session[],first:Date,now=new Date()){
@@ -99,19 +102,20 @@ export function weekComparison(sessions:Session[],first:Date,now=new Date()){
  return {full:percent(sum(values,'current'),sum(values,'previous')),toDay:percent(sum(values.slice(0,cutoff+1),'current'),sum(values.slice(0,cutoff+1),'previous')),weekday:now.toLocaleDateString('de-DE',{weekday:'long'})};
 }
 
-export function semesterWeeks(sessions:Session[],now=new Date()){
- const {start}=semesterSummary([],now);
+export function semesterWeeks(sessions:Session[],now=new Date(),period?:Semester){
+ const {start,end:semesterEnd,until:cutoff}=semesterSummary([],now,period);
+ if(now<start)return [];
  const first=new Date(start);first.setDate(first.getDate()-(first.getDay()+6)%7);
  const weeks:{start:Date;end:Date;minutes:number;work:number;lecture:number}[]=[];
- for(const day=new Date(first);day<=now;day.setDate(day.getDate()+7)){
+ for(const day=new Date(first);day<=now&&day<=semesterEnd;day.setDate(day.getDate()+7)){
   const end=new Date(day);end.setDate(end.getDate()+7);
-  const from=Math.max(start.getTime(),day.getTime()),until=Math.min(end.getTime(),now.getTime());
+  const from=Math.max(start.getTime(),day.getTime()),until=Math.min(end.getTime(),cutoff);
   const totals=sessions.reduce((sum,s)=>{
    const minutes=Math.max(0,Math.min(until,new Date(s.ended_at).getTime())-Math.max(from,new Date(s.started_at).getTime()))/60000;
    if(isLecture(s))sum.lecture+=minutes;else sum.work+=minutes;
    return sum;
   },{work:0,lecture:0});
-  const last=new Date(end);last.setDate(last.getDate()-1);
+  const last=new Date(end);last.setDate(last.getDate()-1);if(last>semesterEnd)last.setTime(semesterEnd.getTime());
   weeks.push({start:new Date(Math.max(start.getTime(),day.getTime())),end:last,minutes:totals.work+totals.lecture,...totals});
  }
  return weeks;

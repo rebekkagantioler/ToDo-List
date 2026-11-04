@@ -603,3 +603,18 @@ html[data-theme=dark] .scenic-focus{background:linear-gradient(#152c3266,#172e34
 .backdate-mode .toggle{margin:0}
 .backdate-mode p,.backdate-preview{font-size:12px;line-height:1.6;margin:10px 0 0}
 .backdate-preview{margin:16px 0}
+
+.semester-summary-selector{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:18px;border-bottom:1px solid var(--line)}
+.semester-picker{display:grid;gap:7px;font-size:12px;color:var(--muted);min-width:0;max-width:340px;width:100%}
+.semester-picker select{width:100%;min-width:0;color:var(--ink)}
+.course-semester-picker{margin:0 0 24px}
+.semester-state{font-size:11px;color:var(--teal)}
+.semester-settings summary{cursor:pointer;font-size:14px;padding:8px 0;font-weight:500}
+.semester-settings p{font-size:12px;line-height:1.6}
+.semester-settings-list{display:grid;gap:8px;margin:18px 0}
+.semester-settings-item{display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:12px}
+.semester-settings-item strong{font-size:13px}.semester-settings-item small{display:block;font-size:11px;color:var(--muted);margin-top:5px}
+.semester-settings-item>span:last-child{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+.semester-settings-form{margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}
+.semester-settings-form .muted{font-size:11px;line-height:1.6}
+@media(max-width:640px){.semester-summary-selector{align-items:flex-end}.semester-summary-selector .semester-picker{max-width:100%}.semester-state{display:none}}
