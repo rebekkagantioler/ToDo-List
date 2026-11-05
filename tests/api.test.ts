@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import {attendanceRequests} from '../src/statistics';
 
 test('API: persistence, validation, relationships and complete backup round-trip', async () => {
  const dir=await mkdtemp(join(tmpdir(),'planraum-test-'));
@@ -38,10 +39,11 @@ test('API: persistence, validation, relationships and complete backup round-trip
   assert.equal((await request('/import','POST',{})).status,400);
   const bad=structuredClone(data);bad.sessions[0].task_id=999999;
   assert.equal((await request('/import','POST',bad)).status,400);assert.deepEqual(await (await request('/data')).json(),data);
-  const payload={course:{name:'Geteilter Kurs',semester:'WS',ects:3,hours_per_ects:25},events:[{title:'UE',weekday:1,start_time:'10:00',end_time:'11:00',starts_on:'2026-10-19',ends_on:'2026-11-02',excluded:['2026-10-26']}]};
+  const payload={course:{name:'Geteilter Kurs',semester:'WS',ects:3,hours_per_ects:25},events:[{title:'UE',weekday:1,start_time:'10:00',end_time:'11:00',starts_on:'2026-10-19',ends_on:'2026-11-02',excluded:['2026-10-26'],unplanned:['2026-11-02']}]};
   const copied=await (await request('/course-copy','POST',payload)).json();
   let shared=await (await request('/data')).json();assert.equal(shared.courses.length,2);assert.equal(shared.tasks.length,1);assert.equal(shared.courses.find((v:any)=>v.id===copied.id).ects,3);
   const copiedEvent=shared.recurring.find((v:any)=>v.course_id===copied.id);assert.equal(shared.settings.find((v:any)=>v.key===`lecture-exclusions-${copiedEvent.id}`).value,'["2026-10-26"]');
+  assert.deepEqual(attendanceRequests(shared,new Date('2026-11-03T12:00')).filter(r=>r.event.id===copiedEvent.id).map(r=>r.date),['2026-10-19']);
   const selectable={...payload,source_key:'original',revision:'v1',events:[{...payload.events[0],source_key:'meeting'}],homework:[{source_key:'routine',event_key:'meeting',title:'Nachbereiten',type:'Nachbereitung',starts_on:'2026-10-19',estimate_minutes:30,priority:'Mittel',tracking:1}]};
   assert.equal((await request(`/course-update/${copied.id}`,'POST',{...selectable,homework:[]})).status,200);
   shared=await (await request('/data')).json();assert.equal(shared.settings.filter((s:any)=>s.key.startsWith('homework-series-')).length,0);
