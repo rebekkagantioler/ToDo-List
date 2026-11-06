@@ -32,7 +32,14 @@ async function request(path:string,method='POST',body?:unknown) {
  if(r.error){if(resource==='sessions'&&(r.error.message.includes('course_id')||r.error.message.includes('task_id')&&r.error.message.includes('null')))throw new Error('Die Datenbank benötigt das Zeit-Update: supabase/optional-task-time.sql im Supabase SQL Editor ausführen. Die laufende Zeit bleibt erhalten.');throw new Error(r.error.message)}return r.data||(row.id?row:{ok:true});
 }
 
+let activeRequests=0;
+export const pendingApiRequests=()=>activeRequests;
 export async function api(path:string,method='POST',body?:unknown):Promise<any>{
+ activeRequests++;
+ try{return await performApi(path,method,body)}finally{activeRequests--}
+}
+
+async function performApi(path:string,method='POST',body?:unknown):Promise<any>{
  const stableBody=cloud&&method==='POST'&&!['/import','/course-copy'].includes(path)&&!path.startsWith('/course-update/')?{...(body as object),id:(body as any)?.id??Math.floor(Math.random()*3500000000000000)+1}:body;
  for(let attempt=0;;attempt++){
   try{return await request(path,method,stableBody)}catch(error){
