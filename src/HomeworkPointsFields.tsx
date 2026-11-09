@@ -1,11 +1,6 @@
-import {useState,useId} from 'react';
-export function pointOptions(maximum:number):number[]|null{
- return Number.isInteger(maximum)&&maximum>0&&maximum<=200?Array.from({length:maximum+1},(_,i)=>i):null;
-}
+import {PointsPicker} from './PointsPicker';
+export {pointOptions} from './PointsPicker';
 export function HomeworkPointsFields({amount,possible,onChange,fixedMaximum}:{amount:string;possible:string;fixedMaximum?:number;onChange:(value:{amount:string;possible:string})=>void}){
- const groupId=useId();
- const [custom,setCustom]=useState(false),options=pointOptions(Number(possible));
- const select=options!==null&&!custom&&(amount===''||options.includes(Number(amount)));
- if(!custom&&(amount===''||Number.isInteger(Number(amount)))&&fixedMaximum!==undefined&&Number.isInteger(fixedMaximum)&&fixedMaximum>0&&fixedMaximum<=6)return <fieldset className="sheet-points-picker"><legend>Wie viele Punkte hast du erreicht?</legend><div>{Array.from({length:fixedMaximum+1},(_,n)=><label key={n}><input type="radio" name={groupId} required value={n} checked={amount!==''&&Number(amount)===n} onChange={()=>onChange({amount:String(n),possible:String(fixedMaximum)})}/><span>{n}</span></label>)}</div><small>von {fixedMaximum} Punkten pro Blatt</small><button type="button" className="text-btn" onClick={()=>setCustom(true)}>Zwischenwert eingeben</button></fieldset>;
- return <div className="form-grid"><label>Erreichte Punkte{select?<select required value={amount} onChange={e=>{if(e.target.value==='custom')setCustom(true);else onChange({amount:e.target.value,possible})}}><option value="">Punkte auswählen</option>{options.map(n=><option value={n} key={n}>{n} von {possible}</option>)}<option value="custom">Anderen Punktwert eingeben …</option></select>:<><input required aria-label="Erreichte Punkte" type="number" min="0" max={possible!==''?Number(possible):undefined} step="any" value={amount} onChange={e=>onChange({amount:e.target.value,possible})}/>{options!==null&&<button type="button" className="text-btn" onClick={()=>{setCustom(false);if(!options.includes(Number(amount)))onChange({amount:'',possible})}}>Punkte auswählen</button>}</>}</label>{fixedMaximum!==undefined?<p className="muted">von {fixedMaximum} Punkten pro Blatt</p>:<label>Maximale Punkte für dieses Blatt<input required type="number" min="0.0001" step="any" value={possible} onChange={e=>onChange({amount,possible:e.target.value})}/></label>}</div>;
+ const maximum=fixedMaximum??(possible!==''&&Number(possible)>0?Number(possible):undefined);
+ return <div className="points-fields">{fixedMaximum===undefined&&<label>Maximale Punkte für dieses Blatt<input required type="number" min="0.0001" step="any" value={possible} onChange={e=>onChange({amount,possible:e.target.value})}/></label>}<PointsPicker amount={amount} maximum={maximum} onChange={earned=>onChange({amount:earned,possible:maximum===undefined?possible:String(maximum)})}/></div>;
 }

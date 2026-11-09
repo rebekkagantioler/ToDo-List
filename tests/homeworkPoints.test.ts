@@ -15,9 +15,9 @@ test('fixed maximum is persisted per requirement and changing it preserves previ
  for(const maximum of [0,-1,NaN,Infinity])assert.equal(validRequirement({...requirement,pointsPerSheet:maximum}),false);
  assert.equal(validRequirement({...requirement,pointsPerSheet:undefined}),true);
 });
-test('earned point selector includes zero and the maximum without preselecting a score',()=>{
+test('earned point boxes include zero and the maximum without preselecting a score',()=>{
  const html=renderToStaticMarkup(createElement(HomeworkPointsFields,{amount:'',possible:'10',onChange:()=>{}}));
- assert.match(html,/<select required="">/);assert.match(html,/<option value="0">0 von 10<\/option>/);assert.match(html,/<option value="10">10 von 10<\/option>/);assert.match(html,/<option value="" selected="">Punkte auswählen/);assert.doesNotMatch(html,/<option value="11">/);
+ assert.equal((html.match(/type="radio"/g)||[]).length,11);assert.match(html,/value="0"/);assert.match(html,/value="10"/);assert.doesNotMatch(html,/checked=""/);assert.doesNotMatch(html,/value="11"/);assert.doesNotMatch(html,/<select/);
 });
 test('fractional scores, fractional maxima and large ranges retain bounded numeric entry',()=>{
  for(const [amount,possible] of [['2.5','10'],['0','7.5'],['0','1000']]){
