@@ -61,7 +61,10 @@ export function worksheetCompletion(data:AppData,r:CourseRequirement){
  const completedTasks=linkedTasks(data,r).filter(t=>t.status==='Erledigt'&&!isSkipped(data,t.id));
  const completedSources=new Set(completedTasks.map(t=>`task-${t.id}`));
  for(const entry of performanceEntries(data,r.id))if(!entry.source.startsWith('task-'))completedSources.add(entry.source);
- return {completed:completedSources.size,total:r.worksheetCount,pendingPoints:missingHomeworkResults(data,r).length};
+ const courseId=linkedTasks(data,r)[0]?.course_id??data.courses.find(c=>courseRequirements(data,c.id).some(x=>x.id===r.id))?.id;
+ const perSheet=courseId?courseSheetMaximum(data,courseId)??r.pointsPerSheet:r.pointsPerSheet;
+ const inferredTotal=r.maximumPoints&&perSheet&&Number.isInteger(r.maximumPoints/perSheet)?r.maximumPoints/perSheet+(r.dropLowest||0):undefined;
+ return {completed:completedSources.size,total:r.worksheetCount??inferredTotal,pendingPoints:missingHomeworkResults(data,r).length};
 }
 export function missingHomeworkResults(data:AppData,r:CourseRequirement){
  return r.kind==='homework'?linkedTasks(data,r).filter(t=>t.status==='Erledigt'&&!isSkipped(data,t.id)&&!requirementEntries(data,r).some(e=>e.source===`task-${t.id}`)):[];

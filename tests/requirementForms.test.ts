@@ -13,7 +13,7 @@ const noop=()=>{};
 function setup(r:CourseRequirement,rows:CourseRequirement[]=[]){return renderToStaticMarkup(createElement(RequirementSetupForm,{draft:r,setDraft:noop,rows,data,course,busy:false,save:noop,onClose:noop}))}
 function result(r:CourseRequirement){return renderToStaticMarkup(createElement(ExamResultForm,{requirement:r,busy:false,error:'',onClose:noop,onSave:noop}))}
 test('creating an exam asks for its requirement and schedule, never scores, grades or pass status',()=>{
- const html=setup(exam);assert.match(html,/Bezeichnung/);assert.match(html,/Prüfungstermin/);assert.match(html,/2026-11-27/);assert.match(html,/13:00/);assert.match(html,/Ergebnisse trägst du später/);
+ const html=setup(exam);assert.match(html,/Bezeichnung/);assert.match(html,/Prüfungstermin/);assert.match(html,/2026-11-27/);assert.match(html,/13:00/);assert.match(html,/Info: Anforderung und Ergebnis/);assert.doesNotMatch(html,/Ergebnisse trägst du später/);
  for(const label of ['Erreichte Punkte','Maximale Punkte','Prüfung abgelegt','Deine Note','Bestanden?','Ergebnis erfassen als'])assert.ok(!html.includes(label),label);
 });
 test('editing a requirement with saved results still shows only setup fields',()=>{
@@ -50,4 +50,10 @@ test('a course-level maximum is prefilled when creating another homework require
 
 test('exam point results use the same clickable score boxes as homework',()=>{
  const html=result({...exam,examEarned:3,examPossible:6});assert.equal((html.match(/type="radio"/g)||[]).length,7);assert.match(html,/<input[^>]*checked=""[^>]*value="3"/);assert.doesNotMatch(html,/aria-label="Erreichte Punkte" type="number"/);
+});
+
+test('setup help stays behind accessible info buttons instead of filling the form with paragraphs',()=>{
+ const html=setup({...exam,kind:'homework',target:24,pointsPerSheet:4,worksheetCount:14,dropLowest:2,attendanceRequired:true});
+ for(const title of ['Punkte pro Hausaufgabe','Streichblätter','Teilnahme und Punkte','Gesamtmaximum','Mindestleistung'])assert.ok(html.includes(`Info: ${title}`),title);
+ assert.match(html,/aria-expanded="false"/);assert.doesNotMatch(html,/class="field-info-box"/);assert.doesNotMatch(html,/Weitere Fehltermine bleiben mit 0 Punkten/);assert.match(html,/12 gewertete Blätter/);
 });

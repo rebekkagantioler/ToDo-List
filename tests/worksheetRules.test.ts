@@ -68,3 +68,13 @@ test('worked-sheet count is independent of points, discarded sheets and missed s
  const c=worksheetCompletion(data,r);assert.equal(c.completed,3);assert.equal(c.total,14);assert.equal(c.pendingPoints,1);
  data.tasks[1].status='Offen';assert.equal(worksheetCompletion(data,r).completed,2);
 });
+
+test('one absence and the lowest attended score consume two drops while 14 remains the work total',()=>{
+ const data=fixture();attendance(data,4,'no');
+ const setting=data.settings.find(s=>s.key===entryKey(r.id,'manual-8'))!;setting.value=JSON.stringify({...JSON.parse(setting.value),amount:1});
+ const p=requirementProgress(data,r);assert.deepEqual([...p.worksheet!.dropped].sort(),['manual-4','manual-8']);assert.equal(p.entries.length,12);assert.equal(p.amount,48);assert.equal(p.possible,48);assert.equal(worksheetCompletion(data,r).total,14);assert.equal(worksheetCompletion(data,r).completed,14);
+});
+test('no absence still discards exactly two; the work count and 50 percent minimum retain distinct denominators',()=>{
+ const data=fixture();
+ const p=requirementProgress(data,r);assert.equal(p.entries.length,12);assert.equal(p.worksheet!.rows.length,14);assert.equal(p.worksheet!.dropped.size,2);assert.equal(worksheetCompletion(data,r).total,14);assert.equal(worksheetProgress(data,1,r).minimum,24);assert.equal(worksheetProgress(data,1,r).marker,50);
+});
