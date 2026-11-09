@@ -1,3 +1,4 @@
+import {DirectLabel} from './DirectLabel';
 import type {AppData} from './types';
 import type {CourseRequirement,PerformanceEntry} from './requirements';
 import {homeworkOwner} from './homework';
@@ -14,5 +15,5 @@ export function linkedEntryDate(data:AppData,entry:PerformanceEntry):{label:stri
 export function PerformanceEntryDate({data,entry,requirement,onChange}:{data:AppData;entry:PerformanceEntry;requirement:CourseRequirement;onChange:(date:string)=>void}){
  const linked=linkedEntryDate(data,entry);
  if(linked)return <div className="performance-linked-date"><span>{linked.label}</span><strong>{linked.date?new Date(linked.date+'T12:00').toLocaleDateString('de-AT',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'}):'Bei der Aufgabe noch nicht festgelegt'}</strong></div>;
- return <label><span className="field-info-caption">{requirement.kind==='homework'?'Datum der Übung (optional)':'Datum der Leistung (optional)'}<FieldInfo label="Welches Datum?">Der Tag, zu dem diese Leistung gehört – nicht der Tag, an dem du sie nachträgst. Bei Übungsblättern ist das der zugehörige Übungstermin. Das Datum dient der Sortierung und gegebenenfalls dem Abgleich mit der Anwesenheit.</FieldInfo></span><input type="date" value={entry.date||''} onChange={e=>onChange(e.target.value)}/></label>;
+ return <DirectLabel><span className="field-info-caption">{requirement.kind==='homework'?'Datum der Übung (optional)':'Datum der Leistung (optional)'}<FieldInfo label="Welches Datum?">Der Tag, zu dem diese Leistung gehört – nicht der Tag, an dem du sie nachträgst. Bei Übungsblättern ist das der zugehörige Übungstermin. Das Datum dient der Sortierung und gegebenenfalls dem Abgleich mit der Anwesenheit.</FieldInfo></span><input type="date" value={entry.date||''} onChange={e=>onChange(e.target.value)}/></DirectLabel>;
 }
