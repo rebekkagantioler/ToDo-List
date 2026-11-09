@@ -1,8 +1,9 @@
+import { courseSheetMaximum } from './sheetPoints';
 import { excludedDates, unplannedDates } from './statistics';
 import type { AppData, Task } from './types';
 export type RequirementKind='exam'|'homework'|'reflection'|'presentation'|'other';
 export type CourseRequirement={id:string;title:string;unit:string;target:number;current:number;kind?:RequirementKind;dateMode?:'fixed'|'unknown'|'choose';date?:string;time?:string;bookingDeadline?:string;examResult?:'open'|'passed'|'failed';examTaken?:boolean;examScoreType?:'points'|'grade';examEarned?:number;examPossible?:number;examGrade?:string;percentage?:boolean;pointsPerSheet?:number;taskIds?:number[];taskType?:string;eventId?:number|null};
-export type PerformanceQuestion={requirement:CourseRequirement;source:string;label:string;date?:string};
+export type PerformanceQuestion={requirement:CourseRequirement;source:string;label:string;date?:string;pointsMaximum?:number};
 export type PerformanceEntry={requirementId:string;source:string;amount:number;possible?:number;label:string;date?:string};
 export const requirementsKey=(id:number)=>`course-requirements-${id}`;
 export const entryKey=(id:string,source:string)=>`performance-entry-${id}-${source}`;
@@ -70,7 +71,7 @@ export function performanceQuestions(data:AppData,path:string,method:string,body
  const taskId=/^\/tasks\/(\d+)$/.exec(path)?.[1];
  const task=taskId?data.tasks.find(t=>t.id===Number(taskId)):undefined;
  if(task&&method==='PUT'&&body?.status==='Erledigt'&&task.status!=='Erledigt'&&!body._skip){
-  return allRequirements(data).filter(({course,requirement:r})=>course.id===task.course_id&&r.kind==='homework'&&matchesTask(r,task)).map(({requirement})=>({requirement,source:`task-${task.id}`,label:task.title}));
+  return allRequirements(data).filter(({course,requirement:r})=>course.id===task.course_id&&r.kind==='homework'&&matchesTask(r,task)).map(({course,requirement})=>({requirement,source:`task-${task.id}`,label:task.title,pointsMaximum:courseSheetMaximum(data,course.id)??requirement.pointsPerSheet}));
  }
  const attendance=/^\/settings\/(lecture-attendance-\d+-\d{4}-\d{2}-\d{2})$/.exec(path)?.[1];
  if(attendance&&method==='PUT'&&!body?._performanceBackfill&&body?.value==='yes'&&data.settings.find(s=>s.key===attendance)?.value!=='yes'){
