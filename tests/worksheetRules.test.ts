@@ -6,7 +6,7 @@ import {worksheetProgress} from '../src/WorksheetProgress';
 import {requirementScore,emptyPassingRule} from '../src/passingRules';
 import {attendanceKey,exclusionKey} from '../src/statistics';
 import type {AppData,Course,RecurringEvent,Task} from '../src/types';
-const r:CourseRequirement={id:'analysis',title:'Arbeitsblätter',kind:'homework',unit:'Punkte',target:24,current:0,pointsPerSheet:4,worksheetCount:14,dropLowest:2,attendanceRequired:true,eventId:1,taskType:'Hausaufgabe'};
+const r:CourseRequirement={id:'analysis',title:'Arbeitsblätter',kind:'homework',unit:'Punkte',target:24,current:0,pointsPerSheet:4,worksheetCount:14,dropLowest:2,worksheetFinalized:true,attendanceRequired:true,eventId:1,taskType:'Hausaufgabe'};
 function fixture(){
  const data:AppData={courses:[{id:1} as Course],tasks:[],recurring:[{id:1,course_id:1} as RecurringEvent],sessions:[],blocks:[],settings:[{key:requirementsKey(1),value:JSON.stringify([r])}]};
  for(let i=1;i<=14;i++){
@@ -77,4 +77,29 @@ test('one absence and the lowest attended score consume two drops while 14 remai
 test('no absence still discards exactly two; the work count and 50 percent minimum retain distinct denominators',()=>{
  const data=fixture();
  const p=requirementProgress(data,r);assert.equal(p.entries.length,12);assert.equal(p.worksheet!.rows.length,14);assert.equal(p.worksheet!.dropped.size,2);assert.equal(worksheetCompletion(data,r).total,14);assert.equal(worksheetProgress(data,1,r).minimum,24);assert.equal(worksheetProgress(data,1,r).marker,50);
+});
+
+
+test('during the semester all recorded scores remain and nothing is discarded early',()=>{
+ const running={...r,worksheetFinalized:false},data=fixture();data.settings[0].value=JSON.stringify([running]);
+ data.settings=data.settings.filter(s=>!s.key.startsWith('performance-entry-')||['manual-1','manual-2','manual-3'].some(source=>s.key===entryKey(r.id,source)));
+ const p=requirementProgress(data,running);assert.equal(p.amount,12);assert.equal(p.worksheet!.dropped.size,0);assert.equal(p.possible,48);assert.equal(p.worksheet!.finalMaximum,48);assert.equal(p.worksheet!.canFinalize,false);assert.equal(p.fulfilled,false);assert.equal(requirementScore(data,running,emptyPassingRule()).percentage,null);
+});
+test('the final two discards apply only after explicit closure, even if all fourteen results are recorded',()=>{
+ const running={...r,worksheetFinalized:false},data=fixture();data.settings[0].value=JSON.stringify([running]);
+ const before=requirementProgress(data,running);assert.equal(before.amount,56);assert.equal(before.possible,48);assert.equal(before.worksheet!.dropped.size,0);assert.equal(before.worksheet!.canFinalize,true);assert.equal(before.fulfilled,false);
+ const after=requirementProgress(data,{...running,worksheetFinalized:true});assert.equal(after.amount,48);assert.equal(after.possible,48);assert.equal(after.worksheet!.dropped.size,2);assert.equal(after.fulfilled,true);
+ assert.equal(worksheetProgress(data,1,running).minimum,24);assert.equal(worksheetCompletion(data,running).total,14);
+});
+test('absence zeros are kept during the semester, and reopening restores the untrimmed score',()=>{
+ const data=fixture();attendance(data,3,'no');const running={...r,worksheetFinalized:false};data.settings[0].value=JSON.stringify([running]);
+ assert.equal(requirementProgress(data,running).amount,52);assert.equal(requirementProgress(data,running).worksheet!.dropped.size,0);
+ const closed={...running,worksheetFinalized:true};assert.equal(requirementProgress(data,closed).amount,48);assert.equal(requirementProgress(data,closed).worksheet!.dropped.size,2);
+ assert.equal(requirementProgress(data,running).amount,52);
+});
+
+test('the bar maximum stays at 48 throughout the semester while no worksheet scores are removed early',()=>{
+ const running={...r,worksheetFinalized:false},data=fixture();data.settings[0].value=JSON.stringify([running]);
+ const before=worksheetProgress(data,1,running);assert.equal(before.maximum,48);assert.equal(before.marker,50);assert.equal(before.amount,56);assert.equal(before.assessment!.dropped.size,0);assert.equal(before.done,false);
+ const after=worksheetProgress(data,1,{...running,worksheetFinalized:true});assert.equal(after.maximum,48);assert.equal(after.marker,50);assert.equal(after.amount,48);assert.equal(after.assessment!.dropped.size,2);
 });

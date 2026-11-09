@@ -3,7 +3,7 @@ import { courseSheetMaximum } from './sheetPoints';
 import { excludedDates, unplannedDates } from './statistics';
 import type { AppData, Task } from './types';
 export type RequirementKind='exam'|'homework'|'reflection'|'presentation'|'other';
-export type CourseRequirement={id:string;title:string;unit:string;target:number;current:number;kind?:RequirementKind;dateMode?:'fixed'|'unknown'|'choose';date?:string;time?:string;bookingDeadline?:string;examResult?:'open'|'passed'|'failed';examTaken?:boolean;examScoreType?:'points'|'grade';examEarned?:number;examPossible?:number;examGrade?:string;percentage?:boolean;pointsPerSheet?:number;maximumPoints?:number;worksheetCount?:number;dropLowest?:number;attendanceRequired?:boolean;taskIds?:number[];taskType?:string;eventId?:number|null};
+export type CourseRequirement={id:string;title:string;unit:string;target:number;current:number;kind?:RequirementKind;dateMode?:'fixed'|'unknown'|'choose';date?:string;time?:string;bookingDeadline?:string;examResult?:'open'|'passed'|'failed';examTaken?:boolean;examScoreType?:'points'|'grade';examEarned?:number;examPossible?:number;examGrade?:string;percentage?:boolean;pointsPerSheet?:number;maximumPoints?:number;worksheetCount?:number;dropLowest?:number;worksheetFinalized?:boolean;attendanceRequired?:boolean;taskIds?:number[];taskType?:string;eventId?:number|null};
 export type PerformanceQuestion={requirement:CourseRequirement;source:string;label:string;date?:string;pointsMaximum?:number};
 export type PerformanceEntry={requirementId:string;source:string;amount:number;possible?:number;label:string;date?:string;attended?:boolean};
 export const requirementsKey=(id:number)=>`course-requirements-${id}`;
@@ -20,6 +20,7 @@ export function validRequirement(value:unknown):value is CourseRequirement{
   &&(r.taskType===undefined||typeof r.taskType==='string')
   &&(r.worksheetCount===undefined||Number.isInteger(r.worksheetCount)&&r.worksheetCount>0)
   &&(r.dropLowest===undefined||Number.isInteger(r.dropLowest)&&r.dropLowest>=0&&(!r.worksheetCount||r.dropLowest<r.worksheetCount))
+  &&(r.worksheetFinalized===undefined||typeof r.worksheetFinalized==='boolean')
   &&(r.attendanceRequired===undefined||typeof r.attendanceRequired==='boolean')
   &&(r.maximumPoints===undefined||Number.isFinite(r.maximumPoints)&&r.maximumPoints>0)
   &&(r.pointsPerSheet===undefined||Number.isFinite(r.pointsPerSheet)&&r.pointsPerSheet>0)
@@ -87,7 +88,7 @@ export function requirementProgress(data:AppData,r:CourseRequirement){
  const recordedPossible=entries.reduce((sum,e)=>sum+(e.possible||0),0);
  const possible=worksheet?.maximum??r.maximumPoints??recordedPossible;
  const value=r.kind==='exam'?(r.examResult==='passed'?1:0):r.percentage?(possible>0?amount/possible*100:0):amount;
- return {entries,amount,possible,recordedPossible,value,worksheet,unallocatedCurrent,fulfilled:r.kind==='exam'?r.examResult==='passed':(!r.percentage||possible>0)&&value>=r.target};
+ return {entries,amount,possible,recordedPossible,value,worksheet,unallocatedCurrent,fulfilled:r.kind==='exam'?r.examResult==='passed':(!(r.kind==='homework'&&(r.dropLowest||0)>0&&!r.worksheetFinalized))&&(!r.percentage||possible>0)&&value>=r.target};
 }
 export const kindLabels:Record<RequirementKind,string>={exam:'Klausur / mündliche Prüfung',homework:'Hausaufgaben / Übungspunkte',reflection:'Reflexionen / Texte',presentation:'Vorrechnen / Präsentation',other:'Sonstiges'};
 export const examDateLabel=(r:CourseRequirement)=>r.dateMode==='fixed'&&r.date?`${new Date(r.date+'T12:00').toLocaleDateString('de-AT')}${r.time?' · '+r.time:''}`:r.dateMode==='choose'?'Termin selbst wählen':'Termin noch unbekannt';

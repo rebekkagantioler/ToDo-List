@@ -63,6 +63,7 @@ export function requirementScore(data:AppData,r:CourseRequirement,rule:PassingRu
  }
  const progress=requirementProgress(data,r);
  if(r.kind==='homework'){
+  if((r.dropLowest||0)>0&&!r.worksheetFinalized)return {percentage:null,earned:null,possible:null};
   const complete=progress.possible>0&&(progress.worksheet?.maximum!==undefined||r.maximumPoints!==undefined||r.current===0&&progress.entries.every(e=>e.possible!==undefined)&&!missingHomeworkResults(data,r).length);
   return complete?{percentage:progress.amount/progress.possible*100,earned:progress.amount,possible:progress.possible}:{percentage:null,earned:null,possible:null};
  }

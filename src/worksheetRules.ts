@@ -31,7 +31,10 @@ export function assessWorksheets(data:AppData,r:CourseRequirement,entries:Perfor
   return {entry,attendance,effectiveAmount:attendance==='yes'?entry.amount:0};
  });
  const eligible=rows.filter(x=>x.attendance==='yes'||x.attendance==='no');
- const lowest=[...eligible].sort((a,b)=>a.effectiveAmount-b.effectiveAmount||(a.attendance==='no'?-1:0)-(b.attendance==='no'?-1:0)||a.entry.source.localeCompare(b.entry.source)).slice(0,r.dropLowest||0);
+ const lowest=[...eligible].sort((a,b)=>a.effectiveAmount-b.effectiveAmount||(a.attendance==='no'?-1:0)-(b.attendance==='no'?-1:0)||a.entry.source.localeCompare(b.entry.source)).slice(0,r.worksheetFinalized?r.dropLowest||0:0);
  const dropped=new Set(lowest.map(x=>x.entry.source));
- return {rows,dropped,credited:eligible.filter(x=>!dropped.has(x.entry.source)).map(x=>({...x.entry,amount:x.effectiveAmount})),maximum:worksheetMaximum(data,r)};
+ const finalMaximum=worksheetMaximum(data,r),pendingFinalization=(r.dropLowest||0)>0&&!r.worksheetFinalized;
+ const maximum=finalMaximum;
+ const canFinalize=!!r.worksheetCount&&eligible.length===r.worksheetCount&&rows.every(x=>x.attendance==='yes'||x.attendance==='no')&&r.current===0;
+ return {rows,dropped,credited:eligible.filter(x=>!dropped.has(x.entry.source)).map(x=>({...x.entry,amount:x.effectiveAmount})),maximum,finalMaximum,pendingFinalization,canFinalize};
 }
