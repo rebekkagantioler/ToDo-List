@@ -618,3 +618,10 @@ html[data-theme=dark] .scenic-focus{background:linear-gradient(#152c3266,#172e34
 .semester-settings-form{margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}
 .semester-settings-form .muted{font-size:11px;line-height:1.6}
 @media(max-width:640px){.semester-summary-selector{align-items:flex-end}.semester-summary-selector .semester-picker{max-width:100%}.semester-state{display:none}}
+
+.requirement-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:16px;margin:20px 0}
+.requirement-card,.requirement-form{border:1px solid var(--line);border-radius:12px;padding:20px;background:var(--soft)}
+.requirement-heading{display:flex;align-items:baseline;justify-content:space-between;gap:16px}.requirement-heading h3{margin:0;overflow-wrap:anywhere}.requirement-heading span{font-size:12px;color:var(--muted);white-space:nowrap}
+.requirement-card progress{width:100%;height:10px;accent-color:var(--teal);margin-bottom:14px}
+.requirement-form{margin-top:20px}.requirement-form fieldset{border:0;padding:0;margin:16px 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.requirement-form label{display:grid;gap:8px}.requirement-form input{width:100%;min-width:0}
+@media(max-width:640px){.requirement-form fieldset{grid-template-columns:1fr}.course-requirements>.page-heading{align-items:stretch;flex-direction:column}}
