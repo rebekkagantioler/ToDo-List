@@ -1,0 +1,22 @@
+import {useState} from 'react';
+import type {CourseRequirement} from './requirements';
+import {validRequirement} from './requirements';
+import {examTaken} from './PerformanceChecklist';
+type ResultMode='pending'|'points'|'grade'|'pass';
+export function examResultMode(r:CourseRequirement):ResultMode{
+ if(r.examScoreType==='grade'&&r.examGrade?.trim())return 'grade';
+ if(r.examEarned!==undefined||r.examPossible!==undefined)return 'points';
+ if(r.examResult==='passed'||r.examResult==='failed')return 'pass';
+ return 'pending';
+}
+export function ExamResultForm({requirement,busy,error,onClose,onSave}:{requirement:CourseRequirement;busy:boolean;error:string;onClose:()=>void;onSave:(patch:Partial<CourseRequirement>)=>void}){
+ const [value,setValue]=useState({...requirement,examTaken:examTaken(requirement)}),[mode,setMode]=useState<ResultMode>(examResultMode(requirement));
+ const valid=validRequirement(value)&&(mode!=='points'||value.examEarned!==undefined&&value.examPossible!==undefined)&&(mode!=='grade'||!!value.examGrade?.trim())&&(mode!=='pass'||value.examResult==='passed'||value.examResult==='failed');
+ return <div className="modal-backdrop"><form className="modal" onSubmit={e=>{e.preventDefault();if(valid)onSave({examTaken:value.examTaken||mode!=='pending',examScoreType:mode==='grade'?'grade':'points',examEarned:mode==='points'?value.examEarned:undefined,examPossible:mode==='points'?value.examPossible:undefined,examGrade:mode==='grade'?value.examGrade?.trim():undefined,examResult:mode==='pending'?'open':value.examResult||'open'})}}><h2>Ergebnis eintragen</h2><p className="muted">{requirement.title}</p><fieldset className="performance-fields" disabled={busy}>
+ <label className="passing-checkbox"><input type="checkbox" checked={!!value.examTaken} onChange={e=>{setValue({...value,examTaken:e.target.checked});if(!e.target.checked){setMode('pending');setValue({...value,examTaken:false,examEarned:undefined,examPossible:undefined,examGrade:undefined,examResult:'open'})}}}/>Prüfung abgelegt</label>
+ <label>Was möchtest du eintragen?<select value={mode} onChange={e=>{const next=e.target.value as ResultMode;setMode(next);setValue({...value,examTaken:next!=='pending'||value.examTaken,examEarned:undefined,examPossible:undefined,examGrade:undefined,examResult:'open',examScoreType:next==='grade'?'grade':'points'})}}><option value="pending">Ergebnis noch nicht bekannt</option><option value="points">Punkte</option><option value="grade">Note</option><option value="pass">Bestanden / nicht bestanden</option></select></label>
+ {mode==='points'&&<div className="form-grid"><label>Erreichte Punkte<input autoFocus required type="number" min="0" max={value.examPossible} step="any" value={value.examEarned??''} onChange={e=>setValue({...value,examEarned:e.target.value===''?undefined:e.target.valueAsNumber})}/></label><label>Maximale Punkte<input required type="number" min={Math.max(0.0001,value.examEarned||0)} step="any" value={value.examPossible??''} onChange={e=>setValue({...value,examPossible:e.target.value===''?undefined:e.target.valueAsNumber})}/></label></div>}
+ {mode==='grade'&&<><label>Deine Note<input autoFocus required placeholder="z. B. 2 oder Gut" value={value.examGrade||''} onChange={e=>setValue({...value,examGrade:e.target.value})}/></label><details className="exam-grade-help"><summary>Wie zählt die Note zur Gesamtbewertung?</summary><p className="muted">Falls dein Kurs mehrere Ergebnisse in Prozent zusammenrechnet, braucht die App die Umrechnung aus deinem Kurs – zum Beispiel, welchem Prozentwert die Note 2 entspricht. Diese Zuordnung kannst du unter „Bestehensregel“ hinterlegen. Deine Note lässt sich auch ohne Umrechnung speichern.</p></details></>}
+ {mode!=='pending'&&<label>Bestanden?{mode!=='pass'?' (falls bekannt)':''}<select required={mode==='pass'} value={value.examResult||'open'} onChange={e=>setValue({...value,examResult:e.target.value as CourseRequirement['examResult']})}><option value="open">Noch nicht bewertet</option><option value="passed">Ja, bestanden</option><option value="failed">Nein, nicht bestanden</option></select></label>}
+ </fieldset>{error&&<p role="alert" className="save-error">{error}</p>}<div className="modal-actions"><button type="button" className="secondary" disabled={busy} onClick={onClose}>Abbrechen</button><button className="primary" disabled={busy||!valid}>{busy?'Speichern …':'Ergebnis speichern'}</button></div></form></div>;
+}
