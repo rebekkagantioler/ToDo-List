@@ -121,3 +121,21 @@ test('exam cards and overview credit scores evaluated by the course rule without
  data=fixture([exam('a')],rule([group(['a'],{minimum:50})]));assert.equal(examRuleStatus(data,1,exam('a')),'pending');
  const manual={...exam('a'),examResult:'passed' as const};data=fixture([manual],emptyPassingRule());assert.equal(courseRequirementSatisfied(data,1,manual),true);
 });
+
+import {PerformanceChecklist,examTaken} from '../src/PerformanceChecklist';
+test('compact checklist separates an exam taken from passing and never renders progress bars',()=>{
+ const first={...exam('Klausur 1',75)},second=exam('Klausur 2');
+ const data=fixture([homework,first,second],rule([group(['homework'],{weight:40,minimum:50}),group(['Klausur 1','Klausur 2'],{weight:60,minimum:50})],50));homeworkResult(data,65,100);
+ const html=renderToStaticMarkup(createElement(PerformanceChecklist,{course:data.courses[0],data}));
+ assert.match(html,/Klausur 1/);assert.match(html,/Klausur 2/);assert.match(html,/Abgelegt · Mindestleistung erfüllt/);assert.match(html,/Mindestleistung erreicht/);assert.match(html,/aria-label="Erledigt"/);assert.match(html,/aria-label="Noch offen"/);assert.doesNotMatch(html,/<progress/);
+ assert.equal(examTaken({...second,examTaken:true}),true);assert.equal(examTaken(second),false);assert.equal(examTaken({...second,examResult:'failed'}),true);
+});
+test('homework minimum can be met without filling a progress bar or meeting a larger personal target',()=>{
+ const h={...homework,target:80};const data=fixture([h],rule([group(['homework'],{minimum:50})]));homeworkResult(data,60,100);
+ assert.equal(courseRequirementSatisfied(data,1,h),true);
+ const html=renderToStaticMarkup(createElement(CourseRequirements,{course:data.courses[0],data,mutate:async()=>{}}));assert.doesNotMatch(html,/<progress/);assert.match(html,/Mindestleistung: /);
+});
+test('a taken exam awaiting its grade is checked as done while the course result remains open',()=>{
+ const r={...exam('Mündliche Prüfung'),examTaken:true};const data=fixture([r],rule([group([r.id],{minimum:50})]));
+ const html=renderToStaticMarkup(createElement(PerformanceChecklist,{course:data.courses[0],data}));assert.match(html,/Abgelegt · Bewertung offen/);assert.match(html,/aria-label="Erledigt"/);assert.equal(evaluatePassingRule(data,1)!.status,'pending');
+});

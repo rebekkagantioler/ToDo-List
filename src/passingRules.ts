@@ -121,5 +121,12 @@ export function examRuleStatus(data:AppData,courseId:number,requirement:CourseRe
 }
 export function courseRequirementSatisfied(data:AppData,courseId:number,requirement:CourseRequirement):boolean{
  const status=examRuleStatus(data,courseId,requirement);
- return status===null?requirementProgress(data,requirement).fulfilled:status==='met';
+ if(status!==null)return status==='met';
+ const fulfilled=requirementProgress(data,requirement).fulfilled;
+ if(requirement.kind==='exam')return fulfilled;
+ const result=evaluatePassingRule(data,courseId);
+ if(!result||result.error)return fulfilled;
+ const component=result.groups.find(x=>x.group.requirementIds.includes(requirement.id));
+ if(!component||component.group.minimum===null)return fulfilled;
+ return component.status==='met'&&(!component.group.mustFulfill||fulfilled);
 }
