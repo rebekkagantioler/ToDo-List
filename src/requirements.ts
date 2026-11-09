@@ -1,7 +1,7 @@
 import { excludedDates, unplannedDates } from './statistics';
 import type { AppData, Task } from './types';
 export type RequirementKind='exam'|'homework'|'reflection'|'presentation'|'other';
-export type CourseRequirement={id:string;title:string;unit:string;target:number;current:number;kind?:RequirementKind;dateMode?:'fixed'|'unknown'|'choose';date?:string;time?:string;bookingDeadline?:string;examResult?:'open'|'passed'|'failed';examTaken?:boolean;examScoreType?:'points'|'grade';examEarned?:number;examPossible?:number;examGrade?:string;percentage?:boolean;taskIds?:number[];taskType?:string;eventId?:number|null};
+export type CourseRequirement={id:string;title:string;unit:string;target:number;current:number;kind?:RequirementKind;dateMode?:'fixed'|'unknown'|'choose';date?:string;time?:string;bookingDeadline?:string;examResult?:'open'|'passed'|'failed';examTaken?:boolean;examScoreType?:'points'|'grade';examEarned?:number;examPossible?:number;examGrade?:string;percentage?:boolean;pointsPerSheet?:number;taskIds?:number[];taskType?:string;eventId?:number|null};
 export type PerformanceQuestion={requirement:CourseRequirement;source:string;label:string;date?:string};
 export type PerformanceEntry={requirementId:string;source:string;amount:number;possible?:number;label:string;date?:string};
 export const requirementsKey=(id:number)=>`course-requirements-${id}`;
@@ -16,6 +16,7 @@ export function validRequirement(value:unknown):value is CourseRequirement{
   &&(r.kind!=='exam'||r.dateMode!=='fixed'||typeof r.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(r.date)&&new Date(r.date+'T12:00').toLocaleDateString('sv-SE')===r.date)
   &&(r.taskIds===undefined||Array.isArray(r.taskIds)&&r.taskIds.every(Number.isSafeInteger))
   &&(r.taskType===undefined||typeof r.taskType==='string')
+  &&(r.pointsPerSheet===undefined||Number.isFinite(r.pointsPerSheet)&&r.pointsPerSheet>0)
   &&(r.examTaken===undefined||typeof r.examTaken==='boolean')
   &&(r.examEarned===undefined||Number.isFinite(r.examEarned)&&r.examEarned>=0)
   &&(r.examPossible===undefined||Number.isFinite(r.examPossible)&&r.examPossible>0)
