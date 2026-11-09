@@ -1,5 +1,5 @@
 import type { AppData, Task } from './types';
-import { excludedDates, occurrenceDates } from './statistics';
+import { excludedDates, unplannedDates, occurrenceDates } from './statistics';
 export type HomeworkSeries={id:string; event_id:number; starts_on:string; task:Omit<Task,'id'|'created_at'|'completed_at'>; skipped:string[]; stopped?:boolean; deleted?:boolean; numbering?:{start:number; from:string}; submission?:{days_before:number;time:string}; title_updates?:Record<string,{from:string;to:string;deadline_from?:string|null;deadline_to?:string}>};
 export const homeworkKey=(id:string)=>`homework-series-${id}`;
 export function homeworkSeries(data:AppData):HomeworkSeries[]{return data.settings.filter(s=>s.key.startsWith('homework-series-')).flatMap(s=>{try{const v=JSON.parse(s.value);return v&&typeof v.id==='string'&&v.task&&Array.isArray(v.skipped)?[v]:[]}catch{return []}})}
@@ -15,7 +15,13 @@ export function nextDeadline(data:AppData,courseId:number|null,now=new Date()):s
 export function homeworkDates(data:AppData,series:HomeworkSeries){
  const event=data.recurring.find(e=>e.id===series.event_id);if(!event)return [];
  const excluded=new Set(excludedDates(data,event.id));
- return occurrenceDates(event).filter(date=>date>=series.starts_on&&!excluded.has(date));
+ let requirements:any[]=[];
+ try{const saved=JSON.parse(data.settings.find(s=>s.key===`course-requirements-${event.course_id}`)?.value||'[]');if(Array.isArray(saved))requirements=saved}catch{/* No linked course requirements. */}
+ return occurrenceDates(event).filter(date=>{
+  if(date<series.starts_on||unplannedDates(data,event.id).includes(date))return false;
+  const keepsWorksheet=requirements.some(r=>r?.kind==='homework'&&(r.taskType===series.task.type||Array.isArray(r.taskIds)&&r.taskIds.includes(homeworkId(series.id,date))));
+  return !excluded.has(date)||keepsWorksheet;
+ });
 }
 export function homeworkDeadline(data:AppData,series:HomeworkSeries,date:string){
  const event=data.recurring.find(e=>e.id===series.event_id);if(!event)return '';
@@ -65,12 +71,12 @@ export function homeworkPlan(data:AppData,now=new Date()){
  const create:Task[]=[],remove:Task[]=[],update:Task[]=[];
  for(const series of homeworkSeries(data)){
   const event=data.recurring.find(e=>e.id===series.event_id);if(!event)continue;
-  const excluded=excludedDates(data,event.id),nextDate=nextHomeworkDate(data,series,now);
+  const allowedDates=new Set(homeworkDates(data,series)),nextDate=nextHomeworkDate(data,series,now);
   for(const date of occurrenceDates(event)){
    if(date<series.starts_on)continue;
    const id=homeworkId(series.id,date),existing=data.tasks.find(t=>t.id===id);
    const deadline=homeworkDeadline(data,series,date),release=homeworkRelease(data,series,date);
-   const skipped=excluded.includes(date)||series.skipped.includes(date);
+   const skipped=!allowedDates.has(date)||series.skipped.includes(date);
    const premature=release>now&&date!==nextDate&&existing?.status==='Offen'&&!data.blocks.some(b=>b.task_id===id);
    if(existing&&(skipped||series.deleted||premature)&&existing.status!=='Erledigt'&&!data.sessions.some(s=>s.task_id===id))remove.push(existing);
    const rename=series.title_updates?.[String(id)];

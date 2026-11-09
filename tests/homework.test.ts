@@ -93,3 +93,11 @@ test('Previously generated early sheets disappear until lecture time without los
  assert.equal(homeworkPlan(d,early).create.length,0);
  assert.deepEqual(homeworkPlan(d,new Date('2026-10-22T12:00')).create.map(t=>t.id),[next.id]);
 });
+
+test('a canceled exercise keeps its worksheet when the course explicitly collects homework points',()=>{
+ const data=fixture(),now=new Date('2026-11-02T10:00');
+ data.settings.push({key:'course-requirements-4',value:JSON.stringify([{id:'sheets',kind:'homework',taskType:'Hausaufgabe'}])},{key:'lecture-exclusions-1',value:'["2026-10-26"]'});
+ const canceledId=homeworkId(series.id,'2026-10-26');
+ const created=homeworkPlan(data,now).create;assert.ok(created.some(t=>t.id===canceledId));data.tasks=created;assert.ok(!homeworkPlan(data,now).remove.some(t=>t.id===canceledId));
+ data.settings.push({key:'lecture-unplanned-1',value:'["2026-10-26"]'});assert.ok(homeworkPlan(data,now).remove.some(t=>t.id===canceledId));
+});

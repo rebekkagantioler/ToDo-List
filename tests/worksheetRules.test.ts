@@ -35,9 +35,9 @@ test('correcting attendance restores the original points and recalculates the dr
  const data=fixture();attendance(data,1,'no');attendance(data,2,'no');attendance(data,3,'no');assert.equal(requirementProgress(data,r).amount,44);
  attendance(data,3,'yes');assert.equal(requirementProgress(data,r).amount,48);assert.equal(JSON.parse(data.settings.find(s=>s.key===entryKey(r.id,'manual-3'))!.value).amount,4);
 });
-test('unconfirmed attendance and canceled dates do not get credit or use discarded-sheet slots',()=>{
+test('unconfirmed attendance remains open while canceled lessons still credit the sheet points',()=>{
  const data=fixture();attendance(data,1,'');data.settings.push({key:exclusionKey(1),value:'["2026-11-02"]'});const p=requirementProgress(data,r);
- assert.equal(p.worksheet!.rows.find(x=>x.entry.source==='manual-1')!.attendance,null);assert.equal(p.worksheet!.rows.find(x=>x.entry.source==='manual-2')!.attendance,'canceled');assert.ok(!p.worksheet!.dropped.has('manual-1'));assert.ok(!p.worksheet!.dropped.has('manual-2'));assert.equal(p.amount,40);
+ assert.equal(p.worksheet!.rows.find(x=>x.entry.source==='manual-1')!.attendance,null);assert.equal(p.worksheet!.rows.find(x=>x.entry.source==='manual-2')!.attendance,'canceled');assert.ok(!p.worksheet!.dropped.has('manual-1'));assert.ok(!p.worksheet!.dropped.has('manual-2'));assert.equal(p.amount,44);
 });
 test('an absent linked task appears as a zero sheet even without a saved result or completion',()=>{
  const data=fixture();data.settings=data.settings.filter(s=>!s.key.startsWith('performance-entry-'));data.tasks=[{id:3,course_id:1,type:'Hausaufgabe',title:'Blatt 3',status:'Offen',deadline:'2026-11-03'} as Task];attendance(data,3,'no');
@@ -102,4 +102,10 @@ test('the bar maximum stays at 48 throughout the semester while no worksheet sco
  const running={...r,worksheetFinalized:false},data=fixture();data.settings[0].value=JSON.stringify([running]);
  const before=worksheetProgress(data,1,running);assert.equal(before.maximum,48);assert.equal(before.marker,50);assert.equal(before.amount,56);assert.equal(before.assessment!.dropped.size,0);assert.equal(before.done,false);
  const after=worksheetProgress(data,1,{...running,worksheetFinalized:true});assert.equal(after.maximum,48);assert.equal(after.marker,50);assert.equal(after.amount,48);assert.equal(after.assessment!.dropped.size,2);
+});
+
+test('a canceled lesson credits earned points even if a previous absence answer was recorded',()=>{
+ const data=fixture();attendance(data,2,'no');data.settings.push({key:exclusionKey(1),value:'["2026-11-02"]'});
+ const ongoing={...r,worksheetFinalized:false},p=requirementProgress(data,ongoing);
+ assert.equal(p.worksheet!.rows.find(x=>x.entry.source==='manual-2')!.effectiveAmount,4);assert.equal(p.amount,56);assert.equal(p.worksheet!.dropped.size,0);
 });
