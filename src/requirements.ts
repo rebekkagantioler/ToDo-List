@@ -106,3 +106,7 @@ export function performanceQuestions(data:AppData,path:string,method:string,body
  }
  return [];
 }
+
+export function isSingleCountRequirement(r:CourseRequirement){
+ return r.target===1&&!r.percentage&&r.kind!=='exam'&&r.kind!=='homework';
+}
