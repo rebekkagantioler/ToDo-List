@@ -32,3 +32,11 @@ test('worksheet details list every sheet directly and preserve their original ma
  const html=renderToStaticMarkup(createElement(CourseRequirements,{data:fixture(),course,mutate:async()=>{}}));assert.match(html,/Blätter \(3\)/);
  for(const n of [1,2,3])assert.ok(html.includes(`Blatt ${n}`));assert.equal((html.match(/4 \/ 6/g)||[]).length,3);assert.match(html,/worksheet-entries/);
 });
+
+test('recorded sheets and linked sheets without points share one dated list and one total count',()=>{
+ const r={...sheets,taskType:'Hausaufgabe'},data=fixture(r);
+ data.tasks=[{id:6,course_id:1,title:'Blatt 6',type:'Hausaufgabe',status:'Erledigt',deadline:'2026-11-09'},{id:5,course_id:1,title:'Blatt 5',type:'Hausaufgabe',status:'Erledigt',deadline:'2026-11-02'}] as AppData['tasks'];
+ data.settings=data.settings.slice(0,1);data.settings.push({key:entryKey(r.id,'task-5'),value:JSON.stringify({requirementId:r.id,source:'task-5',label:'Blatt 5',amount:4,possible:6})});
+ const html=renderToStaticMarkup(createElement(CourseRequirements,{data,course,mutate:async()=>{}}));
+ assert.match(html,/Blätter \(2\)/);assert.match(html,/Punkte fehlen noch/);assert.match(html,/4 \/ 6/);assert.doesNotMatch(html,/Noch keine Blätter eingetragen/);assert.equal((html.match(/<strong>Blatt 6<\/strong>/g)||[]).length,1);assert.equal((html.match(/<strong>Blatt 5<\/strong>/g)||[]).length,1);assert.ok(html.indexOf('<strong>Blatt 6</strong>')<html.indexOf('<strong>Blatt 5</strong>'));assert.doesNotMatch(html,/requirement-missing/);
+});

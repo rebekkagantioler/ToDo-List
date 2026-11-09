@@ -1,10 +1,11 @@
+import {assessWorksheets,worksheetAttendance} from './worksheetRules';
 import { courseSheetMaximum } from './sheetPoints';
 import { excludedDates, unplannedDates } from './statistics';
 import type { AppData, Task } from './types';
 export type RequirementKind='exam'|'homework'|'reflection'|'presentation'|'other';
-export type CourseRequirement={id:string;title:string;unit:string;target:number;current:number;kind?:RequirementKind;dateMode?:'fixed'|'unknown'|'choose';date?:string;time?:string;bookingDeadline?:string;examResult?:'open'|'passed'|'failed';examTaken?:boolean;examScoreType?:'points'|'grade';examEarned?:number;examPossible?:number;examGrade?:string;percentage?:boolean;pointsPerSheet?:number;maximumPoints?:number;taskIds?:number[];taskType?:string;eventId?:number|null};
+export type CourseRequirement={id:string;title:string;unit:string;target:number;current:number;kind?:RequirementKind;dateMode?:'fixed'|'unknown'|'choose';date?:string;time?:string;bookingDeadline?:string;examResult?:'open'|'passed'|'failed';examTaken?:boolean;examScoreType?:'points'|'grade';examEarned?:number;examPossible?:number;examGrade?:string;percentage?:boolean;pointsPerSheet?:number;maximumPoints?:number;worksheetCount?:number;dropLowest?:number;attendanceRequired?:boolean;taskIds?:number[];taskType?:string;eventId?:number|null};
 export type PerformanceQuestion={requirement:CourseRequirement;source:string;label:string;date?:string;pointsMaximum?:number};
-export type PerformanceEntry={requirementId:string;source:string;amount:number;possible?:number;label:string;date?:string};
+export type PerformanceEntry={requirementId:string;source:string;amount:number;possible?:number;label:string;date?:string;attended?:boolean};
 export const requirementsKey=(id:number)=>`course-requirements-${id}`;
 export const entryKey=(id:string,source:string)=>`performance-entry-${id}-${source}`;
 export const skippedKey=(id:number)=>`performance-skipped-${id}`;
@@ -17,6 +18,9 @@ export function validRequirement(value:unknown):value is CourseRequirement{
   &&(r.kind!=='exam'||r.dateMode!=='fixed'||typeof r.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(r.date)&&new Date(r.date+'T12:00').toLocaleDateString('sv-SE')===r.date)
   &&(r.taskIds===undefined||Array.isArray(r.taskIds)&&r.taskIds.every(Number.isSafeInteger))
   &&(r.taskType===undefined||typeof r.taskType==='string')
+  &&(r.worksheetCount===undefined||Number.isInteger(r.worksheetCount)&&r.worksheetCount>0)
+  &&(r.dropLowest===undefined||Number.isInteger(r.dropLowest)&&r.dropLowest>=0&&(!r.worksheetCount||r.dropLowest<r.worksheetCount))
+  &&(r.attendanceRequired===undefined||typeof r.attendanceRequired==='boolean')
   &&(r.maximumPoints===undefined||Number.isFinite(r.maximumPoints)&&r.maximumPoints>0)
   &&(r.pointsPerSheet===undefined||Number.isFinite(r.pointsPerSheet)&&r.pointsPerSheet>0)
   &&(r.examTaken===undefined||typeof r.examTaken==='boolean')
@@ -42,16 +46,29 @@ export function linkedTasks(data:AppData,r:CourseRequirement){
 }
 export function requirementEntries(data:AppData,r:CourseRequirement):PerformanceEntry[]{
  const saved=performanceEntries(data,r.id);
- if(r.kind==='homework'||r.kind==='exam')return saved;
+ if(r.kind==='homework'){
+  const absent=r.attendanceRequired?linkedTasks(data,r).filter(t=>!saved.some(e=>e.source===`task-${t.id}`)).flatMap(t=>{
+   const entry={requirementId:r.id,source:`task-${t.id}`,label:t.title,amount:0,possible:courseSheetMaximum(data,t.course_id!)??r.pointsPerSheet};
+   return worksheetAttendance(data,r,entry)==='no'?[entry]:[];
+  }):[];
+  return [...saved,...absent];
+ }
+ if(r.kind==='exam')return saved;
  const automatic=linkedTasks(data,r).filter(t=>t.status==='Erledigt'&&!isSkipped(data,t.id)&&!saved.some(e=>e.source===`task-${t.id}`)).map(t=>({requirementId:r.id,source:`task-${t.id}`,label:t.title,amount:1}));
  return [...saved,...automatic];
 }
+export function worksheetCompletion(data:AppData,r:CourseRequirement){
+ const completedTasks=linkedTasks(data,r).filter(t=>t.status==='Erledigt'&&!isSkipped(data,t.id));
+ const completedSources=new Set(completedTasks.map(t=>`task-${t.id}`));
+ for(const entry of performanceEntries(data,r.id))if(!entry.source.startsWith('task-'))completedSources.add(entry.source);
+ return {completed:completedSources.size,total:r.worksheetCount,pendingPoints:missingHomeworkResults(data,r).length};
+}
 export function missingHomeworkResults(data:AppData,r:CourseRequirement){
- return r.kind==='homework'?linkedTasks(data,r).filter(t=>t.status==='Erledigt'&&!isSkipped(data,t.id)&&!performanceEntries(data,r.id).some(e=>e.source===`task-${t.id}`)):[];
+ return r.kind==='homework'?linkedTasks(data,r).filter(t=>t.status==='Erledigt'&&!isSkipped(data,t.id)&&!requirementEntries(data,r).some(e=>e.source===`task-${t.id}`)):[];
 }
 export function requirementProgress(data:AppData,r:CourseRequirement){
- const entries=requirementEntries(data,r).filter(e=>{
-  if(e.source.startsWith('task-')){const task=linkedTasks(data,r).find(t=>t.id===Number(e.source.slice(5)));return task?.status==='Erledigt'&&!isSkipped(data,task.id)}
+ const activeEntries=requirementEntries(data,r).filter(e=>{
+  if(e.source.startsWith('task-')){const task=linkedTasks(data,r).find(t=>t.id===Number(e.source.slice(5)));return !!task&&(r.kind==='homework'&&r.attendanceRequired&&worksheetAttendance(data,r,e)==='no'||task.status==='Erledigt'&&!isSkipped(data,task.id))}
   if(e.source.startsWith('lecture-attendance-')){
    const match=/^lecture-attendance-(\d+)-(.*)$/.exec(e.source);if(!match)return false;
    const event=data.recurring.find(x=>x.id===Number(match[1]));
@@ -60,11 +77,14 @@ export function requirementProgress(data:AppData,r:CourseRequirement){
   }
   return true;
  });
- const amount=r.current+entries.reduce((sum,e)=>sum+e.amount,0);
+ const worksheet=r.kind==='homework'?assessWorksheets(data,r,activeEntries):null;
+ const entries=worksheet?worksheet.credited:activeEntries;
+ const unallocatedCurrent=r.kind==='homework'&&(r.attendanceRequired||(r.dropLowest||0)>0)?r.current:0;
+ const amount=r.current-unallocatedCurrent+entries.reduce((sum,e)=>sum+e.amount,0);
  const recordedPossible=entries.reduce((sum,e)=>sum+(e.possible||0),0);
- const possible=r.maximumPoints??recordedPossible;
+ const possible=worksheet?.maximum??r.maximumPoints??recordedPossible;
  const value=r.kind==='exam'?(r.examResult==='passed'?1:0):r.percentage?(possible>0?amount/possible*100:0):amount;
- return {entries,amount,possible,recordedPossible,value,fulfilled:r.kind==='exam'?r.examResult==='passed':(!r.percentage||possible>0)&&value>=r.target};
+ return {entries,amount,possible,recordedPossible,value,worksheet,unallocatedCurrent,fulfilled:r.kind==='exam'?r.examResult==='passed':(!r.percentage||possible>0)&&value>=r.target};
 }
 export const kindLabels:Record<RequirementKind,string>={exam:'Klausur / mündliche Prüfung',homework:'Hausaufgaben / Übungspunkte',reflection:'Reflexionen / Texte',presentation:'Vorrechnen / Präsentation',other:'Sonstiges'};
 export const examDateLabel=(r:CourseRequirement)=>r.dateMode==='fixed'&&r.date?`${new Date(r.date+'T12:00').toLocaleDateString('de-AT')}${r.time?' · '+r.time:''}`:r.dateMode==='choose'?'Termin selbst wählen':'Termin noch unbekannt';
@@ -73,7 +93,7 @@ export function performanceQuestions(data:AppData,path:string,method:string,body
  const taskId=/^\/tasks\/(\d+)$/.exec(path)?.[1];
  const task=taskId?data.tasks.find(t=>t.id===Number(taskId)):undefined;
  if(task&&method==='PUT'&&body?.status==='Erledigt'&&task.status!=='Erledigt'&&!body._skip){
-  return allRequirements(data).filter(({course,requirement:r})=>course.id===task.course_id&&r.kind==='homework'&&matchesTask(r,task)).map(({course,requirement})=>({requirement,source:`task-${task.id}`,label:task.title,pointsMaximum:courseSheetMaximum(data,course.id)??requirement.pointsPerSheet}));
+  return allRequirements(data).filter(({course,requirement:r})=>course.id===task.course_id&&r.kind==='homework'&&matchesTask(r,task)&&(!r.attendanceRequired||worksheetAttendance(data,r,{requirementId:r.id,source:`task-${task.id}`,label:task.title,amount:0})!=='no')).map(({course,requirement})=>({requirement,source:`task-${task.id}`,label:task.title,pointsMaximum:courseSheetMaximum(data,course.id)??requirement.pointsPerSheet}));
  }
  const attendance=/^\/settings\/(lecture-attendance-\d+-\d{4}-\d{2}-\d{2})$/.exec(path)?.[1];
  if(attendance&&method==='PUT'&&!body?._performanceBackfill&&body?.value==='yes'&&data.settings.find(s=>s.key===attendance)?.value!=='yes'){
