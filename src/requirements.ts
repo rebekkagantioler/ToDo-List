@@ -1,14 +1,75 @@
-import type { AppData } from './types';
-
-export type CourseRequirement = { id:string; title:string; unit:string; target:number; current:number };
-export const requirementsKey=(courseId:number)=>`course-requirements-${courseId}`;
-export function validRequirement(value:unknown):value is CourseRequirement {
+import { excludedDates, unplannedDates } from './statistics';
+import type { AppData, Task } from './types';
+export type RequirementKind='exam'|'homework'|'reflection'|'presentation'|'other';
+export type CourseRequirement={id:string;title:string;unit:string;target:number;current:number;kind?:RequirementKind;dateMode?:'fixed'|'unknown'|'choose';date?:string;time?:string;bookingDeadline?:string;examResult?:'open'|'passed'|'failed';percentage?:boolean;taskIds?:number[];taskType?:string;eventId?:number|null};
+export type PerformanceQuestion={requirement:CourseRequirement;source:string;label:string;date?:string};
+export type PerformanceEntry={requirementId:string;source:string;amount:number;possible?:number;label:string;date?:string};
+export const requirementsKey=(id:number)=>`course-requirements-${id}`;
+export const entryKey=(id:string,source:string)=>`performance-entry-${id}-${source}`;
+export const skippedKey=(id:number)=>`performance-skipped-${id}`;
+export function validRequirement(value:unknown):value is CourseRequirement{
  const r=value as CourseRequirement|null;
- return !!r&&typeof r.id==='string'&&!!r.id&&typeof r.title==='string'&&!!r.title.trim()&&typeof r.unit==='string'&&Number.isFinite(r.target)&&r.target>0&&Number.isFinite(r.current)&&r.current>=0;
+ return !!r&&typeof r.id==='string'&&!!r.id&&typeof r.title==='string'&&!!r.title.trim()&&typeof r.unit==='string'&&Number.isFinite(r.target)&&r.target>0&&Number.isFinite(r.current)&&r.current>=0
+  &&(r.kind===undefined||Object.hasOwn(kindLabels,r.kind))
+  &&(!r.percentage||(r.kind==='homework'&&r.target<=100&&r.current===0))
+  &&(!r.kind||r.kind==='homework'||r.kind==='exam'||Number.isInteger(r.target)&&Number.isInteger(r.current))
+  &&(r.kind!=='exam'||r.dateMode!=='fixed'||typeof r.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(r.date)&&new Date(r.date+'T12:00').toLocaleDateString('sv-SE')===r.date)
+  &&(r.taskIds===undefined||Array.isArray(r.taskIds)&&r.taskIds.every(Number.isSafeInteger))
+  &&(r.taskType===undefined||typeof r.taskType==='string');
 }
-export function courseRequirements(data:AppData,courseId:number):CourseRequirement[]{
- try{
-  const value=JSON.parse(data.settings.find(s=>s.key===requirementsKey(courseId))?.value||'[]');
-  return Array.isArray(value)?value.filter(validRequirement):[];
- }catch{return []}
+export function courseRequirements(data:AppData,id:number):CourseRequirement[]{
+ try{const v=JSON.parse(data.settings.find(s=>s.key===requirementsKey(id))?.value||'[]');return Array.isArray(v)?v.filter(validRequirement):[]}catch{return []}
+}
+export function allRequirements(data:AppData){return data.courses.flatMap(course=>courseRequirements(data,course.id).map(requirement=>({course,requirement})))}
+export function performanceEntries(data:AppData,id:string):PerformanceEntry[]{
+ return data.settings.filter(s=>s.key.startsWith(`performance-entry-${id}-`)).flatMap(s=>{
+  try{const e=JSON.parse(s.value);return e&&e.requirementId===id&&typeof e.source==='string'&&typeof e.label==='string'&&Number.isFinite(e.amount)&&e.amount>=0&&(e.possible===undefined||(Number.isFinite(e.possible)&&e.possible>=e.amount))?[e]:[]}catch{return []}
+ });
+}
+export function isSkipped(data:AppData,id:number){return data.settings.some(s=>s.key===skippedKey(id)&&s.value==='yes')}
+export function matchesTask(r:CourseRequirement,t:Task){return r.kind!=='exam'&&(r.taskIds?.includes(t.id)||!!r.taskType&&r.taskType===t.type)}
+export function linkedTasks(data:AppData,r:CourseRequirement){
+ const courseId=data.courses.find(c=>courseRequirements(data,c.id).some(x=>x.id===r.id))?.id;
+ return data.tasks.filter(t=>t.course_id===courseId&&matchesTask(r,t));
+}
+export function requirementEntries(data:AppData,r:CourseRequirement):PerformanceEntry[]{
+ const saved=performanceEntries(data,r.id);
+ if(r.kind==='homework'||r.kind==='exam')return saved;
+ const automatic=linkedTasks(data,r).filter(t=>t.status==='Erledigt'&&!isSkipped(data,t.id)&&!saved.some(e=>e.source===`task-${t.id}`)).map(t=>({requirementId:r.id,source:`task-${t.id}`,label:t.title,amount:1}));
+ return [...saved,...automatic];
+}
+export function missingHomeworkResults(data:AppData,r:CourseRequirement){
+ return r.kind==='homework'?linkedTasks(data,r).filter(t=>t.status==='Erledigt'&&!isSkipped(data,t.id)&&!performanceEntries(data,r.id).some(e=>e.source===`task-${t.id}`)):[];
+}
+export function requirementProgress(data:AppData,r:CourseRequirement){
+ const entries=requirementEntries(data,r).filter(e=>{
+  if(e.source.startsWith('task-')){const task=linkedTasks(data,r).find(t=>t.id===Number(e.source.slice(5)));return task?.status==='Erledigt'&&!isSkipped(data,task.id)}
+  if(e.source.startsWith('lecture-attendance-')){
+   const match=/^lecture-attendance-(\d+)-(.*)$/.exec(e.source);if(!match)return false;
+   const event=data.recurring.find(x=>x.id===Number(match[1]));
+   const course=data.courses.find(c=>courseRequirements(data,c.id).some(x=>x.id===r.id));
+   return !!event&&event.course_id===course?.id&&!excludedDates(data,event.id).includes(match[2])&&!unplannedDates(data,event.id).includes(match[2])&&data.settings.some(s=>s.key===e.source&&s.value==='yes');
+  }
+  return true;
+ });
+ const amount=r.current+entries.reduce((sum,e)=>sum+e.amount,0);
+ const possible=entries.reduce((sum,e)=>sum+(e.possible||0),0);
+ const value=r.kind==='exam'?(r.examResult==='passed'?1:0):r.percentage?(possible>0?amount/possible*100:0):amount;
+ return {entries,amount,possible,value,fulfilled:r.kind==='exam'?r.examResult==='passed':(!r.percentage||possible>0)&&value>=r.target};
+}
+export const kindLabels:Record<RequirementKind,string>={exam:'Klausur / mündliche Prüfung',homework:'Hausaufgaben / Übungspunkte',reflection:'Reflexionen / Texte',presentation:'Vorrechnen / Präsentation',other:'Sonstiges'};
+export const examDateLabel=(r:CourseRequirement)=>r.dateMode==='fixed'&&r.date?`${new Date(r.date+'T12:00').toLocaleDateString('de-AT')}${r.time?' · '+r.time:''}`:r.dateMode==='choose'?'Termin selbst wählen':'Termin noch unbekannt';
+
+export function performanceQuestions(data:AppData,path:string,method:string,body:any):PerformanceQuestion[]{
+ const taskId=/^\/tasks\/(\d+)$/.exec(path)?.[1];
+ const task=taskId?data.tasks.find(t=>t.id===Number(taskId)):undefined;
+ if(task&&method==='PUT'&&body?.status==='Erledigt'&&task.status!=='Erledigt'&&!body._skip){
+  return allRequirements(data).filter(({course,requirement:r})=>course.id===task.course_id&&r.kind==='homework'&&matchesTask(r,task)).map(({requirement})=>({requirement,source:`task-${task.id}`,label:task.title}));
+ }
+ const attendance=/^\/settings\/(lecture-attendance-\d+-\d{4}-\d{2}-\d{2})$/.exec(path)?.[1];
+ if(attendance&&method==='PUT'&&!body?._performanceBackfill&&body?.value==='yes'&&data.settings.find(s=>s.key===attendance)?.value!=='yes'){
+  const match=/^lecture-attendance-(\d+)-(.*)$/.exec(attendance)!;const event=data.recurring.find(e=>e.id===Number(match[1]));
+  return allRequirements(data).filter(({course,requirement:r})=>course.id===event?.course_id&&r.kind==='presentation'&&r.eventId===event?.id).map(({requirement})=>({requirement,source:attendance,label:event!.title,date:match[2]}));
+ }
+ return [];
 }
