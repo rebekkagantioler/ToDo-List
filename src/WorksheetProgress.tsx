@@ -1,0 +1,19 @@
+import type {AppData,Course} from './types';
+import {requirementProgress,type CourseRequirement} from './requirements';
+import {courseRequirementSatisfied,evaluatePassingRule} from './passingRules';
+const number=(value:number)=>value.toLocaleString('de-AT',{maximumFractionDigits:2});
+export function worksheetProgress(data:AppData,courseId:number,r:CourseRequirement){
+ const progress=requirementProgress(data,r),maximum=r.maximumPoints;
+ const evaluation=evaluatePassingRule(data,courseId),component=evaluation&&!evaluation.error?evaluation.groups.find(x=>x.group.requirementIds.includes(r.id)):undefined;
+ const ownMinimum=r.percentage?(maximum===undefined?undefined:r.target/100*maximum):r.target;
+ const groupMinimum=component?.group.minimum!=null&&maximum!==undefined?component.group.minimum/100*maximum:undefined;
+ const minimum=component?.group.minimum!=null?groupMinimum===undefined?undefined:component.group.mustFulfill?Math.max(groupMinimum,ownMinimum||0):groupMinimum:ownMinimum;
+ const minimumLabel=minimum!==undefined?`${number(minimum)} Punkte`:component?.group.minimum!=null?`${number(component.group.minimum)} %${component.group.mustFulfill?` und ${number(r.target)} ${r.percentage?'%':'Punkte'}`:''}`:`${number(r.target)} ${r.percentage?'%':'Punkte'}`;
+ return {amount:progress.amount,maximum,minimum,minimumLabel,fill:maximum===undefined?undefined:Math.min(100,progress.amount/maximum*100),marker:maximum===undefined||minimum===undefined?undefined:Math.min(100,minimum/maximum*100),done:courseRequirementSatisfied(data,courseId,r)};
+}
+export function WorksheetProgress({data,course,requirement,onEdit}:{data:AppData;course:Course;requirement:CourseRequirement;onEdit:()=>void}){
+ const p=worksheetProgress(data,course.id,requirement);
+ return <div className="worksheet-progress"><div className="worksheet-total"><strong>{number(p.amount)}{p.maximum!==undefined&&<span> / {number(p.maximum)}</span>}</strong><span>Punkte</span></div>
+ {p.maximum!==undefined?<><div className="worksheet-progress-track" role="progressbar" aria-label={`${requirement.title}: Punkte von insgesamt ${number(p.maximum)}`} aria-valuemin={0} aria-valuemax={p.maximum} aria-valuenow={Math.min(p.amount,p.maximum)} aria-valuetext={`${number(p.amount)} von ${number(p.maximum)} Punkten${p.minimum!==undefined?`, Mindestleistung ${number(p.minimum)} Punkte`:''}`}><div className="worksheet-progress-fill" style={{width:`${p.fill}%`}}/>{p.marker!==undefined&&<span className="worksheet-minimum-marker" style={{left:`${p.marker}%`}} aria-hidden="true" title={`Mindestleistung: ${number(p.minimum!)} Punkte`}/>}</div><div className="worksheet-scale"><span>0</span>{p.minimum!==undefined&&<span>Mindestleistung: {number(p.minimum)} Punkte</span>}<span>{number(p.maximum)} Punkte</span></div></>:<div className="worksheet-maximum-unknown"><span>Gesamtmaximum noch nicht festgelegt</span><button className="text-btn" onClick={onEdit}>Gesamtmaximum festlegen</button></div>}
+ <div className="worksheet-progress-caption"><span>{p.minimum!==undefined?(p.amount>=p.minimum?'Mindestleistung erreicht':`Noch ${number(p.minimum-p.amount)} Punkte bis zur Mindestleistung`):`Mindestleistung: ${p.minimumLabel}`}{p.maximum===undefined&&p.minimum!==undefined?` · Mindestleistung: ${p.minimumLabel}`:''}</span><span className={`requirement-badge ${p.done?'done':''}`}>{p.done?'Mindestleistung erfüllt':'Offen'}</span></div></div>;
+}

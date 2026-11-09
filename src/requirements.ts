@@ -2,7 +2,7 @@ import { courseSheetMaximum } from './sheetPoints';
 import { excludedDates, unplannedDates } from './statistics';
 import type { AppData, Task } from './types';
 export type RequirementKind='exam'|'homework'|'reflection'|'presentation'|'other';
-export type CourseRequirement={id:string;title:string;unit:string;target:number;current:number;kind?:RequirementKind;dateMode?:'fixed'|'unknown'|'choose';date?:string;time?:string;bookingDeadline?:string;examResult?:'open'|'passed'|'failed';examTaken?:boolean;examScoreType?:'points'|'grade';examEarned?:number;examPossible?:number;examGrade?:string;percentage?:boolean;pointsPerSheet?:number;taskIds?:number[];taskType?:string;eventId?:number|null};
+export type CourseRequirement={id:string;title:string;unit:string;target:number;current:number;kind?:RequirementKind;dateMode?:'fixed'|'unknown'|'choose';date?:string;time?:string;bookingDeadline?:string;examResult?:'open'|'passed'|'failed';examTaken?:boolean;examScoreType?:'points'|'grade';examEarned?:number;examPossible?:number;examGrade?:string;percentage?:boolean;pointsPerSheet?:number;maximumPoints?:number;taskIds?:number[];taskType?:string;eventId?:number|null};
 export type PerformanceQuestion={requirement:CourseRequirement;source:string;label:string;date?:string;pointsMaximum?:number};
 export type PerformanceEntry={requirementId:string;source:string;amount:number;possible?:number;label:string;date?:string};
 export const requirementsKey=(id:number)=>`course-requirements-${id}`;
@@ -17,6 +17,7 @@ export function validRequirement(value:unknown):value is CourseRequirement{
   &&(r.kind!=='exam'||r.dateMode!=='fixed'||typeof r.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(r.date)&&new Date(r.date+'T12:00').toLocaleDateString('sv-SE')===r.date)
   &&(r.taskIds===undefined||Array.isArray(r.taskIds)&&r.taskIds.every(Number.isSafeInteger))
   &&(r.taskType===undefined||typeof r.taskType==='string')
+  &&(r.maximumPoints===undefined||Number.isFinite(r.maximumPoints)&&r.maximumPoints>0)
   &&(r.pointsPerSheet===undefined||Number.isFinite(r.pointsPerSheet)&&r.pointsPerSheet>0)
   &&(r.examTaken===undefined||typeof r.examTaken==='boolean')
   &&(r.examEarned===undefined||Number.isFinite(r.examEarned)&&r.examEarned>=0)
@@ -60,9 +61,10 @@ export function requirementProgress(data:AppData,r:CourseRequirement){
   return true;
  });
  const amount=r.current+entries.reduce((sum,e)=>sum+e.amount,0);
- const possible=entries.reduce((sum,e)=>sum+(e.possible||0),0);
+ const recordedPossible=entries.reduce((sum,e)=>sum+(e.possible||0),0);
+ const possible=r.maximumPoints??recordedPossible;
  const value=r.kind==='exam'?(r.examResult==='passed'?1:0):r.percentage?(possible>0?amount/possible*100:0):amount;
- return {entries,amount,possible,value,fulfilled:r.kind==='exam'?r.examResult==='passed':(!r.percentage||possible>0)&&value>=r.target};
+ return {entries,amount,possible,recordedPossible,value,fulfilled:r.kind==='exam'?r.examResult==='passed':(!r.percentage||possible>0)&&value>=r.target};
 }
 export const kindLabels:Record<RequirementKind,string>={exam:'Klausur / mündliche Prüfung',homework:'Hausaufgaben / Übungspunkte',reflection:'Reflexionen / Texte',presentation:'Vorrechnen / Präsentation',other:'Sonstiges'};
 export const examDateLabel=(r:CourseRequirement)=>r.dateMode==='fixed'&&r.date?`${new Date(r.date+'T12:00').toLocaleDateString('de-AT')}${r.time?' · '+r.time:''}`:r.dateMode==='choose'?'Termin selbst wählen':'Termin noch unbekannt';
