@@ -13,12 +13,12 @@ export function useTimer(onError:(message:string)=>void,onSaved:()=>Promise<void
  const sync=async()=>{
   if(!cloud||locked.current)return;
   const version=revision.current;
-  const result=await cloud.from('settings').select('value').eq('key',key).maybeSingle();
+  const result=await cloud.from('settings').select('value').eq('key',key).abortSignal(AbortSignal.timeout(15000)).maybeSingle();
   if(result.error)throw new Error(result.error.message);
   if(locked.current||version!==revision.current)return;
   if(!result.data){
    const local=readLocal();
-   const inserted=await cloud.from('settings').upsert({key,value:JSON.stringify(local)},{onConflict:'user_id,key',ignoreDuplicates:true});
+   const inserted=await cloud.from('settings').upsert({key,value:JSON.stringify(local)},{onConflict:'user_id,key',ignoreDuplicates:true}).abortSignal(AbortSignal.timeout(15000));
    if(inserted.error)throw new Error(inserted.error.message);
    // Read the winning value if another device initialized at the same time.
    return sync();
@@ -36,7 +36,7 @@ export function useTimer(onError:(message:string)=>void,onSaved:()=>Promise<void
  const write=async(next:ActiveTimer|null)=>{
   const value=JSON.stringify(next);
   if(cloud){
-   const result=await cloud.from('settings').update({value}).eq('key',key).eq('value',raw.current).select('value');
+   const result=await cloud.from('settings').update({value}).eq('key',key).eq('value',raw.current).select('value').abortSignal(AbortSignal.timeout(15000));
    if(result.error)throw new Error(result.error.message);
    if(!result.data?.length)throw new Error('Der Timer wurde auf einem anderen Gerät geändert. Bitte kurz warten und erneut versuchen.');
   }
@@ -45,11 +45,11 @@ export function useTimer(onError:(message:string)=>void,onSaved:()=>Promise<void
  const run=async(action:()=>Promise<void>)=>{
   if(locked.current)return;
   locked.current=true;revision.current++;setBusy(true);
-  try{if(!ready.current)throw new Error('Timer wird noch synchronisiert. Bitte kurz warten.');await action()}
+  try{if(!ready.current)throw new Error('Timer wird noch synchronisiert. Bitte kurz warten und erneut starten.');await action()}
   catch(e){onError(e instanceof Error?e.message:'Timer konnte nicht gespeichert werden.')}
   finally{locked.current=false;setBusy(false);void sync().catch(()=>{})}
  };
- const setTimer=async(next:(Omit<ActiveTimer,'id'>&{id?:number})|null)=>{let saved=false;await run(async()=>{
+ const setTimer=async(next:(Omit<ActiveTimer,'id'>&{id?:number})|null)=>{if(!ready.current){try{await sync()}catch(e){onError(e instanceof Error?e.message:'Timer konnte nicht synchronisiert werden.');return false}}let saved=false;await run(async()=>{
   if(current.current?.stoppedAt&&next)throw new Error('Bitte zuerst die angehaltene Zeit speichern.');
   if(current.current&&next&&!next.id)throw new Error('Es läuft bereits ein Timer. Bitte diesen zuerst stoppen.');
   await write(next?newTimer(next):null);saved=true;
@@ -60,7 +60,7 @@ export function useTimer(onError:(message:string)=>void,onSaved:()=>Promise<void
   await write(stopped);
   await api('/sessions','POST',timerSession(stopped));
   await write(null);
-  await onSaved();
+  void onSaved().catch(e=>onError(e instanceof Error?e.message:'Ansicht konnte nicht aktualisiert werden.'));
  });
  const requestStop=()=>run(async()=>{if(current.current)await write(stoppedTimer(current.current))});
  const cancelStop=()=>run(async()=>{

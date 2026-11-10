@@ -30,13 +30,13 @@ export function lastOccurrence(startsOn:string,weekday:number,count:number):stri
 export const attendanceKey=(eventId:number,date:string)=>`lecture-attendance-${eventId}-${date}`;
 export function attendanceAnswer(data:AppData,eventId:number,date:string):'yes'|'no'|null{
  const value=data.settings.find(s=>s.key===attendanceKey(eventId,date))?.value;
- return value==='yes'||value==='no'?value:null;
+ return value==='planned-no'?'no':value==='yes'||value==='no'?value:null;
 }
 export function attendanceRequests(data:AppData,now=new Date()){
  return data.recurring.filter(e=>e.course_id).flatMap(event=>{
   const excluded=new Set(excludedDates(data,event.id));
   // Open-ended series only need occurrences through today.
-  return occurrenceDates({...event,ends_on:event.ends_on||key(now)}).filter(date=>!excluded.has(date)&&new Date(`${date}T${event.start_time}`)<=now).map(date=>({event,date,answer:attendanceAnswer(data,event.id,date)}));
+  return occurrenceDates({...event,ends_on:event.ends_on||key(now)}).filter(date=>!excluded.has(date)&&new Date(`${date}T${event.start_time}`)<=now).map(date=>({event,date,answer:data.settings.find(s=>s.key===attendanceKey(event.id,date))?.value==='planned-no'?null:attendanceAnswer(data,event.id,date)}));
  }).sort((a,b)=>`${b.date}T${b.event.start_time}`.localeCompare(`${a.date}T${a.event.start_time}`));
 }
 // Only confirmed, completed occurrences increase progress.

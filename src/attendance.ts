@@ -16,7 +16,7 @@ export function courseAttendance(data:AppData,course:Course,now=new Date()){
   const excluded=new Set(excludedDates(data,event.id));
   return occurrenceDates({...event,ends_on:event.ends_on||today}).filter(date=>!unplannedDates(data,event.id).includes(date)).map(date=>({event,date,canceled:excluded.has(date),answer:attendanceAnswer(data,event.id,date),started:new Date(`${date}T${event.start_time}`)<=now}));
  }).sort((a,b)=>`${a.date}T${a.event.start_time}`.localeCompare(`${b.date}T${b.event.start_time}`)||a.event.id-b.event.id);
- const active=rows.filter(r=>!r.canceled),present=active.filter(r=>r.started&&r.answer==='yes').length,absent=active.filter(r=>r.started&&r.answer==='no').length;
+ const active=rows.filter(r=>!r.canceled),present=active.filter(r=>r.started&&r.answer==='yes').length,absent=active.filter(r=>r.answer==='no').length;
  const policy=attendancePolicy(data,course);
  return {rows,present,absent,total:active.length,pending:active.filter(r=>r.started&&!r.answer).length,openEnded:events.some(e=>!e.ends_on),policy,remaining:policy.limit===null?null:Math.max(0,policy.limit-absent)};
 }

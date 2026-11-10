@@ -686,3 +686,5 @@ html[data-theme=dark] .scenic-focus{background:linear-gradient(#152c3266,#172e34
 
 /* Interactive hit areas follow the visible controls, not surrounding labels or cards. */
 label,.course-visibility-choice{cursor:default}input:is([type=checkbox],[type=radio]){width:16px;height:16px;min-width:16px;min-height:16px;max-width:16px;max-height:16px;padding:0;flex:0 0 16px;cursor:pointer}.sheet-points-picker label{flex:0 0 40px;width:40px;height:42px;max-width:40px}.sheet-points-picker input[type=radio]{min-width:0;min-height:0;max-width:none;max-height:none;width:40px;height:42px;inset:0}.performance-mini-card>header>button{width:fit-content;max-width:100%}.performance-mini-card:hover{transform:none;box-shadow:none}.performance-mini-card>header>button:hover{color:var(--teal)}
+
+.backdate-mode label.toggle{display:flex;align-items:center;gap:12px}.backdate-mode label.toggle input[type="checkbox"]{margin:0;flex-shrink:0}

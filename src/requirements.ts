@@ -15,7 +15,7 @@ export function validRequirement(value:unknown):value is CourseRequirement{
   &&(r.kind===undefined||Object.hasOwn(kindLabels,r.kind))
   &&(!r.percentage||(r.kind==='homework'&&r.target<=100&&r.current===0))
   &&(!r.kind||r.kind==='homework'||r.kind==='exam'||Number.isInteger(r.target)&&Number.isInteger(r.current))
-  &&(r.kind!=='exam'||r.dateMode!=='fixed'||typeof r.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(r.date)&&new Date(r.date+'T12:00').toLocaleDateString('sv-SE')===r.date)
+  &&((r.kind!=='exam'&&r.kind!=='other')||r.dateMode!=='fixed'||typeof r.date==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(r.date)&&new Date(r.date+'T12:00').toLocaleDateString('sv-SE')===r.date)
   &&(r.taskIds===undefined||Array.isArray(r.taskIds)&&r.taskIds.every(Number.isSafeInteger))
   &&(r.taskType===undefined||typeof r.taskType==='string')
   &&(r.worksheetCount===undefined||Number.isInteger(r.worksheetCount)&&r.worksheetCount>0)
