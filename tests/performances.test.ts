@@ -36,3 +36,17 @@ test('calendar includes dated other requirements alongside exams and identifies 
  d.settings[0].value=JSON.stringify([{id:'only',kind:'other',title:'Abgabe',unit:'Leistung',target:1,current:0,dateMode:'fixed',date}]);
  assert.match(render(d),/panel exam-agenda/);
 });
+
+test('agenda groups only populated months chronologically and keeps undated exams separate',()=>{
+ const d=fixture(),now=new Date();
+ const monthKey=(offset:number)=>{const date=new Date(now.getFullYear(),now.getMonth()+offset,1);return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`};
+ const exam=(id:string,offset:number)=>({id,kind:'exam',title:id,unit:'Prüfung',target:1,current:0,dateMode:'fixed',date:monthKey(offset)+'-15'});
+ d.settings[0].value=JSON.stringify([exam('Spätere Klausur',3),exam('Aktuelle Klausur',0),exam('Frühere Klausur',1),{id:'unknown',kind:'exam',title:'Offene Mündliche',unit:'Prüfung',target:1,current:0}]);
+ const html=render(d),agenda=html.slice(html.indexOf('panel exam-agenda'),html.indexOf('performance-courses-column'));
+ assert.equal((agenda.match(/class="exam-agenda-month"/g)||[]).length,2);
+ assert.ok(agenda.indexOf('Frühere Klausur')<agenda.indexOf('Spätere Klausur'));
+ for(const title of ['Spätere Klausur','Aktuelle Klausur','Frühere Klausur','Offene Mündliche'])assert.equal(agenda.split(`<strong>${title}</strong>`).length-1,1);
+ for(const offset of [1,3])assert.ok(agenda.includes(new Date(monthKey(offset)+'-01T12:00').toLocaleDateString('de-AT',{month:'long',year:'numeric'})));
+ assert.ok(!agenda.includes(new Date(monthKey(2)+'-01T12:00').toLocaleDateString('de-AT',{month:'long',year:'numeric'})));
+ assert.match(agenda,/Prüfungen ohne Termin/);
+});
