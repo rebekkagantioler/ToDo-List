@@ -71,7 +71,7 @@ export default function App(){
  const {timer,setTimer,stopTimer,requestStop,cancelStop,busy:savingTime}=useTimer(setNotice,async()=>{await refresh();setNotice('Arbeitszeit gespeichert.')});
  useAppUpdate(loading||!!timer||savingTime);
  const refresh=async()=>{setData(await loadData());};
- const startLoad=()=>{setLoading(true);setLoadError('');void loadData().then(setData).catch(e=>setLoadError(e instanceof Error?e.message:'Daten konnten nicht geladen werden.')).finally(()=>setLoading(false));};
+ const startLoad=()=>{setLoading(true);setLoadError('');let displayed=false;void loadData(stored=>{displayed=true;setData(stored);setLoading(false)}).then(setData).catch(e=>{const message=e instanceof Error?e.message:'Daten konnten nicht geladen werden.';if(displayed)setNotice(`Deine gespeicherten Daten sind geladen. Automatische Aktualisierung noch nicht abgeschlossen: ${message}`);else setLoadError(message)}).finally(()=>setLoading(false));};
  useEffect(()=>{startLoad()},[]);
  useEffect(()=>{document.documentElement.dataset.theme=dark?'dark':'light';localStorage.setItem('planraum-theme',dark?'dark':'light');},[dark]);
  useEffect(()=>{if(!timer)return; const i=setInterval(()=>setData(d=>({...d})),1000); return()=>clearInterval(i)},[timer]);
