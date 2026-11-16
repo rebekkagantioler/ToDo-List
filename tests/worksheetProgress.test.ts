@@ -40,3 +40,18 @@ test('recorded sheets and linked sheets without points share one dated list and 
  const html=renderToStaticMarkup(createElement(CourseRequirements,{data,course,mutate:async()=>{}}));
  assert.match(html,/Blätter \(2\)/);assert.match(html,/Punkte fehlen noch/);assert.match(html,/4 \/ 6/);assert.doesNotMatch(html,/Noch keine Blätter eingetragen/);assert.equal((html.match(/<strong>Blatt 6<\/strong>/g)||[]).length,1);assert.equal((html.match(/<strong>Blatt 5<\/strong>/g)||[]).length,1);assert.ok(html.indexOf('<strong>Blatt 6</strong>')<html.indexOf('<strong>Blatt 5</strong>'));assert.doesNotMatch(html,/requirement-missing/);
 });
+
+test('all existing sheets appear for point entry even when open, with current names and dates after synchronization',()=>{
+ const r={...sheets,taskType:'Hausaufgabe',worksheetCount:3},data=fixture(r);
+ data.tasks=[{id:1,course_id:1,title:'Blatt 1',type:'Hausaufgabe',status:'Offen',deadline:'2026-10-05'},{id:2,course_id:1,title:'Blatt 2',type:'Hausaufgabe',status:'Offen',deadline:'2026-10-12'},{id:3,course_id:1,title:'Blatt 3',type:'Hausaufgabe',status:'Erledigt',deadline:'2026-10-19'}] as AppData['tasks'];
+ data.settings=data.settings.slice(0,1);
+ data.settings.push({key:entryKey(r.id,'task-2'),value:JSON.stringify({requirementId:r.id,source:'task-2',label:'Alter falscher Blattname',date:'2026-11-30',amount:4,possible:6})},{key:entryKey(r.id,'task-99'),value:JSON.stringify({requirementId:r.id,source:'task-99',label:'Gelöschtes Duplikat',amount:4,possible:6})});
+ const html=renderToStaticMarkup(createElement(CourseRequirements,{data,course,mutate:async()=>{}}));
+ assert.match(html,/Blätter \(3\)/);
+ for(const n of [1,2,3])assert.equal((html.match(new RegExp(`<strong>Blatt ${n}</strong>`,'g'))||[]).length,1);
+ assert.equal((html.match(/>Punkte eintragen</g)||[]).length,2);
+ assert.match(html,/2026-10-05/);assert.match(html,/2026-10-12/);assert.doesNotMatch(html,/Alter falscher Blattname|2026-11-30|Gelöschtes Duplikat/);
+ assert.equal(requirementProgress(data,r).amount,4);
+ assert.equal(worksheetProgress(data,1,r).amount,4);
+ assert.match(html,/1 von 3 Blättern bearbeitet/);
+});

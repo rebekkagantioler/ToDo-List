@@ -13,7 +13,7 @@ import { CoursePassingRules } from './CoursePassingRules';
 import { useRef, useState } from 'react';
 import type { AppData, Course } from './types';
 import { attendanceKey, occurrenceDates, excludedDates, unplannedDates } from './statistics';
-import { courseRequirements, requirementsKey, requirementProgress, requirementEntries, missingHomeworkResults, isSingleCountRequirement, entryKey, kindLabels, examDateLabel, type CourseRequirement, type PerformanceEntry } from './requirements';
+import { courseRequirements, requirementsKey, requirementProgress, requirementEntries, linkedTasks, missingHomeworkResults, isSingleCountRequirement, entryKey, kindLabels, examDateLabel, type CourseRequirement, type PerformanceEntry } from './requirements';
 type Props={data:AppData;course:Course;mutate:(path:string,method:string,body:unknown)=>Promise<unknown>};
 const number=(n:number)=>n.toLocaleString('de-AT',{maximumFractionDigits:2});
 export function CourseRequirements({data,course,mutate}:Props){
@@ -39,9 +39,14 @@ export function CourseRequirements({data,course,mutate}:Props){
  <div className="requirement-list">{rows.map(r=>{
   const p=requirementProgress(data,r),done=courseRequirementSatisfied(data,course.id,r),examStatus=examRuleStatus(data,course.id,r),component=evaluation&&!evaluation.error?evaluation.groups.find(x=>x.group.requirementIds.includes(r.id)):undefined;
   const single=isSingleCountRequirement(r);
-  const entries=orderedPerformanceEntries(data,requirementEntries(data,r)),missing=missingHomeworkResults(data,r);
+  const tasks=linkedTasks(data,r);
+  const recorded=requirementEntries(data,r);
+  const entries=orderedPerformanceEntries(data,r.kind==='homework'?recorded.filter(e=>!e.source.startsWith('task-')||tasks.some(t=>e.source===`task-${t.id}`)).map(e=>{
+   const task=tasks.find(t=>e.source===`task-${t.id}`);return task?{...e,label:task.title,date:linkedEntryDate(data,e)?.date}:e;
+  }):recorded);
+  const missing=r.kind==='homework'?tasks.filter(t=>!entries.some(e=>e.source===`task-${t.id}`)):missingHomeworkResults(data,r);
   const missingSources=new Set(missing.map(t=>`task-${t.id}`));
-  const sheets=orderedPerformanceEntries(data,[...entries,...missing.map(t=>({requirementId:r.id,source:`task-${t.id}`,label:t.title,amount:0}))]);
+  const sheets=orderedPerformanceEntries(data,[...entries,...missing.map(t=>({requirementId:r.id,source:`task-${t.id}`,label:t.title,amount:0,date:linkedEntryDate(data,{requirementId:r.id,source:`task-${t.id}`,label:t.title,amount:0})?.date}))]);
   const minimum=r.kind==='homework'&&component?.group.minimum!=null?`${number(component.group.minimum)} %${component.group.mustFulfill?` und ${number(r.target)} ${r.percentage?'%':r.unit}`:''}`:`${number(r.target)} ${r.percentage?'%':r.unit}`;
   return <article className={`requirement-card ${single?'is-single':''} ${r.kind==='homework'?'worksheet-card':''} ${done?'is-fulfilled':''}`} tabIndex={-1} id={`requirement-${r.id}`} key={r.id}>
    <div className="requirement-main">

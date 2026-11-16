@@ -26,13 +26,13 @@ function saveEntry(data:AppData,e:PerformanceEntry){put(data,entryKey(e.requirem
 const points:CourseRequirement={id:'points',title:'Übungsblätter',unit:'Punkte',kind:'homework',target:60,current:0,taskType:'Hausaufgabe'};
 const reflection:CourseRequirement={id:'texts',title:'Reflexionen',unit:'Texte',kind:'reflection',target:5,current:2,taskType:'Reflexion'};
 const task=(id:number,course_id=1,type='Hausaufgabe',status:Task['status']='Erledigt')=>({id,course_id,type,status,title:`Blatt ${id}`} as Task);
-test('points use per-sheet results, corrections replace the same sheet and reopened/skipped/deleted sheets do not count',()=>{
+test('points use per-sheet results independently of completion, corrections replace the same sheet and skipped/deleted sheets do not count',()=>{
  const data=fixture(points);data.tasks=[task(1),task(2)];
  const e={requirementId:points.id,source:'task-1',label:'Blatt 1',amount:8,possible:12};saveEntry(data,e);
  assert.equal(requirementProgress(data,points).amount,8);
  saveEntry(data,{...e,amount:10});assert.equal(requirementProgress(data,points).amount,10);assert.equal(performanceEntries(data,points.id).length,1);
  put(data,skippedKey(1),'yes');assert.equal(requirementProgress(data,points).amount,0);
- put(data,skippedKey(1),'no');data.tasks[0].status='Offen';assert.equal(requirementProgress(data,points).amount,0);
+ put(data,skippedKey(1),'no');data.tasks[0].status='Offen';assert.equal(requirementProgress(data,points).amount,10);
  data.tasks=[];assert.equal(requirementProgress(data,points).amount,0);
 });
 test('percentage goals include possible points from zero-point sheets and do not start fulfilled',()=>{

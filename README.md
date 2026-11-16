@@ -134,3 +134,5 @@ Die Kurskarten unter **Kurse** lassen sich am Griff mit Maus oder Finger auf ein
 
 
 Auf dem Handy ist die Zeiterfassung scrollbar: Kursauswahl, Timer und große Bedienelemente stehen zuerst, gefolgt vom Tagesspruch und den letzten Sitzungen. Die Uhr wird nicht mehr verkleinert, um alle Inhalte gleichzeitig in eine Bildschirmhöhe zu pressen. Die Kurskarten haben nur einen Ziehgriff, keine sichtbaren Pfeiltasten.
+
+Unter Leistungen erscheinen alle vorhandenen verknüpften Blätter, auch offene und nachträglich übernommene. Punkte können direkt beim jeweiligen Blatt eingetragen werden und zählen unabhängig vom Aufgaben-Häkchen; Teilnahme- und Streichregeln gelten weiterhin. Die Bearbeitungsanzeige zählt separat die abgehakten Aufgaben. Nach einem Blätter-Abgleich verwendet die Liste die aktuellen Blattnamen und Termine; verwaiste Punkteverknüpfungen erzeugen keine zusätzlichen Blattzeilen.

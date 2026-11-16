@@ -72,7 +72,11 @@ export function missingHomeworkResults(data:AppData,r:CourseRequirement){
 }
 export function requirementProgress(data:AppData,r:CourseRequirement){
  const activeEntries=requirementEntries(data,r).filter(e=>{
-  if(e.source.startsWith('task-')){const task=linkedTasks(data,r).find(t=>t.id===Number(e.source.slice(5)));return !!task&&(r.kind==='homework'&&r.attendanceRequired&&worksheetAttendance(data,r,e)==='no'||task.status==='Erledigt'&&!isSkipped(data,task.id))}
+  if(e.source.startsWith('task-')){
+   const task=linkedTasks(data,r).find(t=>t.id===Number(e.source.slice(5)));if(!task)return false;
+   if(r.kind==='homework')return r.attendanceRequired&&worksheetAttendance(data,r,e)==='no'||!isSkipped(data,task.id);
+   return task.status==='Erledigt'&&!isSkipped(data,task.id);
+  }
   if(e.source.startsWith('lecture-attendance-')){
    const match=/^lecture-attendance-(\d+)-(.*)$/.exec(e.source);if(!match)return false;
    const event=data.recurring.find(x=>x.id===Number(match[1]));
