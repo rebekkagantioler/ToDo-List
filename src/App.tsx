@@ -1,3 +1,4 @@
+import {courseNeedsWorksheetSync} from './courseWorksheetSync';
 import {DirectLabel} from './DirectLabel';
 import { CourseSheetPoints } from './CourseSheetPoints';
 import { courseSheetMaximum } from './sheetPoints';
@@ -520,8 +521,9 @@ function CourseUpdates({course,data,mutate}:{course:Course;data:AppData;mutate:a
  if(!source)return null;
  const changed=!origin||source.revision!==origin.revision;
  const worksheets=(source.homework||[]).filter(h=>h.sheets?.length);
- if(!changed&&!worksheets.length)return null;
- return <><div className="course-update-banner"><div><strong>{changed?'Änderungen am ursprünglichen Kurs verfügbar':'Blätter mit dem ursprünglichen Kurs abgleichen'}</strong><p>Der Abgleich übernimmt alle Blattnummern und Abgabetermine aus dem Original, ergänzt fehlende Blätter und bereinigt doppelte Blätter.</p></div><div className="setting-actions">{worksheets.length>0&&<SaveButton className="secondary" onClick={()=>mutate(`/course-update/${course.id}`,'POST',{...source,source_snapshot:source,homework:worksheets,requirements:undefined,sheet_maximum:undefined,update_course:false})}>Blätter abgleichen</SaveButton>}{changed&&<button className="secondary" onClick={()=>setOpen(true)}>Änderungen ansehen</button>}</div></div>{open&&<Modal title="Kurs aktualisieren" onClose={()=>setOpen(false)}><CourseTransfer template={source} origin={origin??undefined} onBack={()=>setOpen(false)} onSave={async value=>{await mutate(`/course-update/${course.id}`,'POST',value);setOpen(false)}}/></Modal>}</>;
+ const needsSync=courseNeedsWorksheetSync(data,course.id,source,origin);
+ if(!changed&&!needsSync)return null;
+ return <><div className="course-update-banner"><div><strong>{changed?'Änderungen am ursprünglichen Kurs verfügbar':'Blätter mit dem ursprünglichen Kurs abgleichen'}</strong><p>Der Abgleich übernimmt alle Blattnummern und Abgabetermine aus dem Original, ergänzt fehlende Blätter und bereinigt doppelte Blätter.</p></div><div className="setting-actions">{needsSync&&<SaveButton className="secondary" onClick={()=>mutate(`/course-update/${course.id}`,'POST',{...source,source_snapshot:source,homework:worksheets,requirements:undefined,sheet_maximum:undefined,update_course:false})}>Blätter abgleichen</SaveButton>}{changed&&<button className="secondary" onClick={()=>setOpen(true)}>Änderungen ansehen</button>}</div></div>{open&&<Modal title="Kurs aktualisieren" onClose={()=>setOpen(false)}><CourseTransfer template={source} origin={origin??undefined} onBack={()=>setOpen(false)} onSave={async value=>{await mutate(`/course-update/${course.id}`,'POST',value);setOpen(false)}}/></Modal>}</>;
 }
 
 

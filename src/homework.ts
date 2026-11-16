@@ -100,7 +100,7 @@ export function homeworkPlan(data:AppData,now=new Date()){
  }
  return {create,remove,update,...(reassign.length?{reassign}:{})};
 }
-export function homeworkOwner(data:AppData,id:number){for(const series of homeworkSeries(data)){const event=data.recurring.find(e=>e.id===series.event_id);if(!event)continue;for(const date of occurrenceDates(event))if(homeworkId(series.id,date)===id)return {series,date};}return null;}
+export function homeworkOwner(data:AppData,id:number){for(const series of homeworkSeries(data)){const event=data.recurring.find(e=>e.id===series.event_id);if(!event)continue;for(const date of [...new Set([...occurrenceDates(event),...(series.reference?.map(s=>s.date)??[])])])if(homeworkId(series.id,date)===id)return {series,date};}return null;}
 
 export function sameWorksheetFamily(a:HomeworkSeries,b:HomeworkSeries){
  return a.task.course_id===b.task.course_id&&a.task.type===b.task.type&&a.task.title===b.task.title;
@@ -109,7 +109,7 @@ function referenceWorksheetPlan(data:AppData,series:HomeworkSeries,now:Date){
  const create:Task[]=[],update:Task[]=[],remove:Task[]=[],reassign:{from:number;to:number|null}[]=[];
  const sheets=series.reference!,next=nextHomeworkDate(data,series,now);
  const family=homeworkSeries(data).filter(s=>sameWorksheetFamily(s,series));
- const owned=new Set(family.flatMap(s=>{const event=data.recurring.find(e=>e.id===s.event_id);return event?occurrenceDates(event).map(date=>homeworkId(s.id,date)):[]}));
+ const owned=new Set(family.flatMap(s=>{const event=data.recurring.find(e=>e.id===s.event_id);return event?[...new Set([...occurrenceDates(event),...(s.reference?.map(sheet=>sheet.date)??[])])].map(date=>homeworkId(s.id,date)):[]}));
  const titles=new Set(sheets.map(sheet=>sheet.title));
  const prefix=series.task.title+' ';
  const candidates=data.tasks.filter(t=>t.course_id===series.task.course_id&&t.type===series.task.type&&(owned.has(t.id)||titles.has(t.title)||t.title.startsWith(prefix)&&/^\d+$/.test(t.title.slice(prefix.length))));

@@ -133,5 +133,22 @@ test('Shared numbered sheets use the original actual dates and can repair a lega
   const target:any={...source,courses:[{...source.courses[0],id:40}],tasks:[],recurring:[{...source.recurring[0],course_id:40,id:10}],settings:[{key:homeworkKey('legacy'),value:JSON.stringify(local)}]};
   const plan=homeworkPlan(target,new Date('2026-10-20T12:00'));
   assert.deepEqual(plan.create.map(t=>[t.title,t.deadline]),source.tasks.map((t:any)=>[t.title,t.deadline]));
+
+  // Exact screenshot case: the active series starts with Blatt 3 in November,
+  // while Blatt 1 and 2 are older standalone tasks with individually set times.
+  await db.exec(`SELECT set_config('request.jwt.claim.sub','${alice}',false);DELETE FROM tasks WHERE course_id=4;UPDATE recurring_events SET starts_on='2026-11-09',ends_on='2026-11-30',start_time='12:00' WHERE id=1;`);
+  const november={...series,starts_on:'2026-11-09',numbering:{start:3,from:'2026-11-09'}};
+  await db.query('UPDATE settings SET value=$1 WHERE key=$2',[JSON.stringify(november),homeworkKey('original')]);
+  const roster=[{id:11,title:'Blatt 1',deadline:'2026-10-12T11:08'},{id:12,title:'Blatt 2',deadline:'2026-10-19T13:45'},{id:homeworkId('original','2026-11-09'),title:'Blatt 3',deadline:'2026-11-09T13:00'},{id:homeworkId('original','2026-11-16'),title:'Blatt 4',deadline:'2026-11-16T13:00'},{id:homeworkId('original','2026-11-23'),title:'Blatt 5',deadline:'2026-11-23T12:00'}];
+  for(const t of roster)await db.query("INSERT INTO tasks(id,title,course_id,area,type,deadline,status) VALUES($1,$2,4,'Universität','Hausaufgabe',$3,'Erledigt')",[t.id,t.title,t.deadline]);
+  await db.exec(`SELECT set_config('request.jwt.claim.sub','${bob}',false)`);
+  const historical:any=(await db.query('SELECT get_course_catalog_entry($1) AS p',[payload.source_key])).rows[0].p;
+  assert.deepEqual(historical.homework[0].sheets.filter((r:any)=>r.visible).map((r:any)=>[r.title,r.deadline]),roster.map(r=>[r.title,r.deadline]));
+  await db.query('SELECT apply_course_update(40,$1::jsonb)',[JSON.stringify(historical)]);
+  const repaired=JSON.parse((await db.query("SELECT value FROM settings WHERE key='homework-series-legacy'")).rows[0].value as string);
+  const friend:any={...target,tasks:[],recurring:[{...target.recurring[0],starts_on:'2026-11-09',ends_on:'2026-11-30',start_time:'12:00'}],settings:[{key:homeworkKey('legacy'),value:JSON.stringify(repaired)}]};
+  const synced=homeworkPlan(friend,new Date('2026-11-16T14:28'));
+  assert.deepEqual(synced.create.map(t=>[t.title,t.deadline]),roster.map(r=>[r.title,r.deadline]));
+  friend.tasks=synced.create;assert.deepEqual(homeworkPlan(friend,new Date('2026-11-16T14:28')),{create:[],remove:[],update:[]});
  }finally{await db.close()}
 });

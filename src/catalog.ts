@@ -1,5 +1,5 @@
 import type {AppData, Course, RecurringEvent} from './types';
-import {canceledDates, unplannedDates} from './statistics';
+import {canceledDates, unplannedDates, occurrenceDates} from './statistics';
 import {homeworkSeries, homeworkDates, homeworkTitle, homeworkDeadline, homeworkId, type HomeworkSeries} from './homework';
 export type CatalogEvent=Omit<RecurringEvent,'id'|'course_id'>&{source_key?:string;excluded:string[];unplanned?:string[]};
 export type CatalogHomework={source_key:string;event_key:string;title:string;type:string;starts_on:string;estimate_minutes:number;priority:string;tracking:number;numbering?:HomeworkSeries['numbering'];submission?:HomeworkSeries['submission'];sheets?:HomeworkSeries['reference']};
@@ -16,13 +16,37 @@ export const courseIsVisible=(data:AppData,courseId:number)=>data.settings.some(
 export function catalogEntries(data:AppData):CourseCatalogEntry[]{
  return data.courses.filter(c=>courseIsVisible(data,c.id)).map(c=>{
   const events=data.recurring.filter(e=>e.course_id===c.id).map(e=>({source_key:String(e.id),title:e.title,weekday:e.weekday,start_time:e.start_time,end_time:e.end_time,starts_on:e.starts_on,ends_on:e.ends_on,auto_track:e.auto_track,excluded:canceledDates(data,e.id),unplanned:unplannedDates(data,e.id)}));
-  const homework=homeworkSeries(data).filter(s=>s.task.course_id===c.id&&!s.deleted&&!s.stopped&&events.some(e=>e.source_key===String(s.event_id))).map(s=>({source_key:s.id,event_key:String(s.event_id),title:s.task.title,type:s.task.type,starts_on:s.starts_on,estimate_minutes:s.task.estimate_minutes,priority:s.task.priority,tracking:s.task.tracking,...(s.numbering?{sheets:homeworkDates(data,s).filter(date=>!s.skipped.includes(date)).map(date=>{const task=data.tasks.find(t=>t.id===homeworkId(s.id,date))??data.tasks.find(t=>t.course_id===c.id&&t.type===s.task.type&&t.title===homeworkTitle(data,s,date));return {date,title:task?.title??homeworkTitle(data,s,date),deadline:task?.deadline??homeworkDeadline(data,s,date),visible:!!task}})}:{}),...(s.numbering?{numbering:s.numbering}:{}),...(s.submission?{submission:s.submission}:{})}));
+  const homework=homeworkSeries(data).filter(s=>s.task.course_id===c.id&&!s.deleted&&!s.stopped&&events.some(e=>e.source_key===String(s.event_id))).map(s=>({source_key:s.id,event_key:String(s.event_id),title:s.task.title,type:s.task.type,starts_on:s.starts_on,estimate_minutes:s.task.estimate_minutes,priority:s.task.priority,tracking:s.task.tracking,...(s.numbering?{sheets:catalogWorksheetSheets(data,s)}:{}),...(s.numbering?{numbering:s.numbering}:{}),...(s.submission?{submission:s.submission}:{})}));
   let saved:any[]=[];try{const value=JSON.parse(data.settings.find(s=>s.key===`course-requirements-${c.id}`)?.value||'[]');if(Array.isArray(value))saved=value}catch{}
   const requirements=saved.map(r=>({...generalRequirement(r),source_key:r.id,...(r.eventId?{event_key:String(r.eventId)}:{})}));
   const maximum=Number(data.settings.find(s=>s.key===`course-sheet-points-${c.id}`)?.value);
   const base={requirements,...(maximum>0&&Number.isFinite(maximum)?{sheet_maximum:maximum}:{}),course:{name:c.name,code:c.code,semester:c.semester,ects:c.ects,hours_per_ects:c.hours_per_ects,color:c.color,description:''},events,homework};
   return {id:String(c.id),name:c.name,payload:{...base,source_key:String(c.id),revision:JSON.stringify(base)}};
  });
+}
+// Earlier sheets can be standalone tasks or belong to a retired series. Their
+// recorded deadlines are authoritative even when the active series starts later.
+export function catalogWorksheetSheets(data:AppData,series:HomeworkSeries){
+ const event=data.recurring.find(e=>e.id===series.event_id);
+ let sheets=homeworkDates(data,series).filter(date=>!series.skipped.includes(date)).map(date=>{
+  const task=data.tasks.find(t=>t.id===homeworkId(series.id,date));
+  return {date,title:task?.title??homeworkTitle(data,series,date),deadline:task?.deadline??homeworkDeadline(data,series,date),visible:!!task};
+ });
+ if(!event)return sheets;
+ const prefix=series.task.title+' ';
+ const tasks=data.tasks.filter(t=>t.course_id===series.task.course_id&&t.type===series.task.type&&t.title.startsWith(prefix)&&/^\d+$/.test(t.title.slice(prefix.length))&&t.deadline).sort((a,b)=>a.id-b.id);
+ const seen=new Set<string>();
+ for(const task of tasks){
+  if(seen.has(task.title))continue;seen.add(task.title);
+  const owned=[...new Set([...occurrenceDates(event),...sheets.map(s=>s.date)])].find(date=>homeworkId(series.id,date)===task.id);
+  const day=new Date(`${task.deadline!.slice(0,10)}T12:00:00`);if(!Number.isFinite(day.getTime()))continue;
+  day.setDate(day.getDate()+(series.submission?.days_before??0));
+  day.setDate(day.getDate()+(event.weekday-day.getDay()+7)%7);
+  const date=owned??`${day.getFullYear()}-${String(day.getMonth()+1).padStart(2,'0')}-${String(day.getDate()).padStart(2,'0')}`;
+  sheets=sheets.filter(s=>s.title!==task.title&&s.date!==date);
+  sheets.push({date,title:task.title,deadline:task.deadline!,visible:true});
+ }
+ return sheets.sort((a,b)=>a.date.localeCompare(b.date));
 }
 export function selectCourseContents(template:CourseTemplate,eventKeys:string[],homeworkKeys:string[],_startsOn?:string):CourseTemplate{
  return {...template,source_snapshot:template,events:template.events.filter(e=>eventKeys.includes(e.source_key||'')),homework:(template.homework||[]).filter(h=>homeworkKeys.includes(h.source_key)&&eventKeys.includes(h.event_key))};

@@ -49,3 +49,33 @@ test('Moving duplicate work preserves tracked times, planned blocks, points and 
  assert.equal(JSON.parse(moves.settings.find(s=>s.key===`performance-entry-r-task-${to}`)!.value).amount,3);
  assert.equal(moves.settings.find(s=>s.key==='performance-entry-r-task-50')!.value,'{}');
 });
+
+test('Screenshot regression: historical standalone sheets before the active series are included exactly once',()=>{
+ const data=fixture();data.recurring[0].starts_on='2026-11-09';data.recurring[0].ends_on='2026-11-30';data.recurring[0].start_time='12:00';
+ const active={...base,starts_on:'2026-11-09',numbering:{start:3,from:'2026-11-09'}};
+ data.settings.push({key:homeworkKey(active.id),value:JSON.stringify(active)});
+ data.tasks=[task(11,'Blatt 1','2026-10-12T11:08'),task(12,'Blatt 2','2026-10-19T13:45'),task(homeworkId(active.id,'2026-11-09'),'Blatt 3','2026-11-09T13:00'),task(homeworkId(active.id,'2026-11-16'),'Blatt 4','2026-11-16T13:00'),task(homeworkId(active.id,'2026-11-23'),'Blatt 5','2026-11-23T12:00')];
+ const source=catalogEntries(data)[0].payload;
+ const sheets=source.homework![0].sheets!;
+ assert.deepEqual(sheets.filter(s=>s.visible).map(s=>[s.title,s.deadline]),data.tasks.map(t=>[t.title,t.deadline]));
+ const friend=structuredClone(data);friend.tasks=friend.tasks.slice(2);friend.settings=[{key:homeworkKey(active.id),value:JSON.stringify({...active,reference:sheets})}];
+ const when=new Date('2026-11-16T14:28');const plan=homeworkPlan(friend,when);
+ assert.deepEqual(plan.create.map(t=>[t.title,t.deadline]),[['Blatt 1','2026-10-12T11:08'],['Blatt 2','2026-10-19T13:45']]);
+ friend.tasks.push(...plan.create);
+ assert.equal(homeworkOwner(friend,homeworkId(active.id,'2026-10-12'))?.date,'2026-10-12');
+ assert.deepEqual(homeworkPlan(friend,when),{create:[],remove:[],update:[]});
+});
+
+test('The sync prompt disappears after persisted sheets match and returns only for a real difference',async()=>{
+ const {courseNeedsWorksheetSync}=await import('../src/courseWorksheetSync');
+ const data=fixture();const ref=references(),series={...base,reference:ref};
+ data.settings.push({key:homeworkKey(base.id),value:JSON.stringify(series)});
+ const source={course:data.courses[0],events:[],homework:[{source_key:'source',event_key:'event',title:'Blatt',type:'Hausaufgabe',starts_on:base.starts_on,estimate_minutes:60,priority:'Mittel',tracking:1,sheets:ref}]};
+ const origin={source_key:'course',revision:'same',event_map:{event:1},homework_map:{source:base.id},snapshot:source};
+ assert.equal(courseNeedsWorksheetSync(data,4,source,origin,now),true);
+ apply(data);
+ assert.equal(courseNeedsWorksheetSync(data,4,source,origin,now),false);
+ assert.equal(courseNeedsWorksheetSync(structuredClone(data),4,source,origin,now),false);
+ source.homework[0].sheets=[...ref,{date:'2026-09-28',title:'Früheres Blatt',deadline:'2026-09-28T09:00',visible:true}];
+ assert.equal(courseNeedsWorksheetSync(data,4,source,origin,now),true);
+});
