@@ -14,7 +14,9 @@ export function transferCourse(db:Database.Database,template:CourseTemplate,targ
   for(const key of template.remove_events||[]){const local=origin.event_map[key];if(local){db.prepare('DELETE FROM recurring_events WHERE id=? AND course_id=?').run(local,id);delete origin.event_map[key];}}
   for(const [index,e] of template.events.entries()){
    if(!Number.isInteger(e.weekday)||e.weekday<0||e.weekday>6||!e.starts_on||!e.start_time||!e.end_time)throw new Error('Ungültiger Termin');
-   const key=e.source_key||String(index),mapped=origin.event_map[key];
+   const key=e.source_key||String(index);
+   const legacy=!origin.event_map[key]&&target?db.prepare('SELECT id FROM recurring_events WHERE course_id=? AND title=? AND weekday=? AND start_time=? AND starts_on=? ORDER BY id LIMIT 1').get(id,e.title,e.weekday,e.start_time,e.starts_on) as {id:number}|undefined:undefined;
+   const mapped=origin.event_map[key]||legacy?.id;
    const existing=mapped&&db.prepare('SELECT id FROM recurring_events WHERE id=? AND course_id=?').get(mapped,id);
    // A locally removed event stays removed; new source events can be selected explicitly.
    if(mapped&&!existing)continue;
@@ -25,12 +27,18 @@ export function transferCourse(db:Database.Database,template:CourseTemplate,targ
   }
   for(const h of template.homework||[]){
    const eventId=origin.event_map[h.event_key];if(!eventId)throw new Error('Aufgabenserie benötigt eine ausgewählte Einheit');
-   let local=origin.homework_map[h.source_key];const row=local?db.prepare('SELECT value FROM settings WHERE key=?').get(`homework-series-${local}`) as {value:string}|undefined:undefined;
-   const existing=row?JSON.parse(row.value):null;if(local&&(!existing||existing.deleted||existing.stopped))continue;
+   let local=origin.homework_map[h.source_key];
+   if(!local&&target){const legacy=(db.prepare("SELECT value FROM settings WHERE key LIKE 'homework-series-%' ORDER BY key").all() as {value:string}[]).map(r=>JSON.parse(r.value)).find(s=>s.task?.course_id===id&&s.task?.title===h.title&&s.task?.type===h.type&&!s.deleted&&!s.stopped);local=legacy?.id;}
+   const row=local?db.prepare('SELECT value FROM settings WHERE key=?').get(`homework-series-${local}`) as {value:string}|undefined:undefined;
+   const existing=row?JSON.parse(row.value):null;if(local&&(!existing||existing.deleted||existing.stopped)&&!h.sheets)continue;
    local=local||crypto.randomUUID();
    const start=existing?.starts_on&&existing.starts_on<h.starts_on?existing.starts_on:h.starts_on;
-   const series={...existing,id:local,event_id:eventId,starts_on:start,skipped:existing?.skipped||[],task:{...existing?.task,title:h.title,description:existing?.task?.description||'',area:'Universität',type:h.type||'Hausaufgabe',course_id:id,deadline:null,estimate_minutes:h.estimate_minutes??60,priority:h.priority||'Mittel',status:'Offen',tracking:h.tracking?1:0},numbering:h.numbering,submission:h.submission};
+   const series={...existing,id:local,event_id:eventId,starts_on:start,skipped:existing?.skipped||[],task:{...existing?.task,title:h.title,description:existing?.task?.description||'',area:'Universität',type:h.type||'Hausaufgabe',course_id:id,deadline:null,estimate_minutes:h.estimate_minutes??60,priority:h.priority||'Mittel',status:'Offen',tracking:h.tracking?1:0},numbering:h.numbering,submission:h.submission,...(h.sheets?{reference:h.sheets,skipped:[],title_updates:{},stopped:false,deleted:false}:{})};
    setting(`homework-series-${local}`,series);origin.homework_map[h.source_key]=local;
+   if(h.sheets){
+    const duplicates=db.prepare("SELECT key,value FROM settings WHERE key LIKE 'homework-series-%'").all() as {key:string;value:string}[];
+    for(const row of duplicates){const other=JSON.parse(row.value);if(other.id!==local&&other.task?.course_id===id&&other.task?.title===h.title&&other.task?.type===h.type)setting(row.key,{...other,stopped:true});}
+   }
   }
   if(template.sheet_maximum&&Number.isFinite(template.sheet_maximum)&&template.sheet_maximum>0)setting(`course-sheet-points-${id}`,template.sheet_maximum);
   if(template.requirements){

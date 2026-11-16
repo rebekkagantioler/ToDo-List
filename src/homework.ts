@@ -1,6 +1,7 @@
 import type { AppData, Task } from './types';
 import { excludedDates, unplannedDates, occurrenceDates } from './statistics';
-export type HomeworkSeries={id:string; event_id:number; starts_on:string; task:Omit<Task,'id'|'created_at'|'completed_at'>; skipped:string[]; stopped?:boolean; deleted?:boolean; numbering?:{start:number; from:string}; submission?:{days_before:number;time:string}; title_updates?:Record<string,{from:string;to:string;deadline_from?:string|null;deadline_to?:string}>};
+export type WorksheetReference={date:string;title:string;deadline:string;visible:boolean};
+export type HomeworkSeries={id:string; event_id:number; starts_on:string; task:Omit<Task,'id'|'created_at'|'completed_at'>; skipped:string[]; reference?:WorksheetReference[]; stopped?:boolean; deleted?:boolean; numbering?:{start:number; from:string}; submission?:{days_before:number;time:string}; title_updates?:Record<string,{from:string;to:string;deadline_from?:string|null;deadline_to?:string}>};
 export const homeworkKey=(id:string)=>`homework-series-${id}`;
 export function homeworkSeries(data:AppData):HomeworkSeries[]{return data.settings.filter(s=>s.key.startsWith('homework-series-')).flatMap(s=>{try{const v=JSON.parse(s.value);return v&&typeof v.id==='string'&&v.task&&Array.isArray(v.skipped)?[v]:[]}catch{return []}})}
 export function homeworkId(series:string,date:string){let hash=1469598103934665603n;for(const c of `${series}:${date}`)hash=BigInt.asUintN(64,(hash^BigInt(c.charCodeAt(0)))*1099511628211n);return Number(hash%4000000000000000n)+4000000000000000;}
@@ -13,6 +14,7 @@ export function nextDeadline(data:AppData,courseId:number|null,now=new Date()):s
  }).filter(d=>new Date(d)>now).sort()[0]||'';
 }
 export function homeworkDates(data:AppData,series:HomeworkSeries){
+ if(series.reference)return series.reference.map(sheet=>sheet.date);
  const event=data.recurring.find(e=>e.id===series.event_id);if(!event)return [];
  const excluded=new Set(excludedDates(data,event.id));
  let requirements:any[]=[];
@@ -24,6 +26,7 @@ export function homeworkDates(data:AppData,series:HomeworkSeries){
  });
 }
 export function homeworkDeadline(data:AppData,series:HomeworkSeries,date:string){
+ const reference=series.reference?.find(sheet=>sheet.date===date);if(reference)return reference.deadline;
  const event=data.recurring.find(e=>e.id===series.event_id);if(!event)return '';
  if(!series.submission)return `${date}T${event.start_time}`;
  const day=new Date(`${date}T12:00`);day.setDate(day.getDate()-series.submission.days_before);
@@ -39,6 +42,7 @@ export function nextHomeworkDate(data:AppData,series:HomeworkSeries,now=new Date
  return homeworkDates(data,series).find(date=>!series.skipped.includes(date)&&new Date(`${date}T${event.start_time}`)>=now)||'';
 }
 export function homeworkTitle(data:AppData,series:HomeworkSeries,date:string){
+ const reference=series.reference?.find(sheet=>sheet.date===date);if(reference)return reference.title;
  const numbering=series.numbering;
  if(!numbering||date<numbering.from)return series.task.title;
  const dates=homeworkDates(data,series).filter(d=>d>=numbering.from);
@@ -68,8 +72,14 @@ export function homeworkTitleUpdates(data:AppData,series:HomeworkSeries,from:str
  return updates;
 }
 export function homeworkPlan(data:AppData,now=new Date()){
- const create:Task[]=[],remove:Task[]=[],update:Task[]=[];
+ const create:Task[]=[],remove:Task[]=[],update:Task[]=[],reassign:{from:number;to:number|null}[]=[];
+ const authoritative=homeworkSeries(data).filter(s=>s.reference&&!s.stopped&&!s.deleted);
  for(const series of homeworkSeries(data)){
+  const reference=authoritative.find(s=>sameWorksheetFamily(s,series));
+  if(reference){
+   if(reference.id===series.id){const plan=referenceWorksheetPlan(data,series,now);create.push(...plan.create);remove.push(...plan.remove);update.push(...plan.update);reassign.push(...plan.reassign)}
+   continue;
+  }
   const event=data.recurring.find(e=>e.id===series.event_id);if(!event)continue;
   const allowedDates=new Set(homeworkDates(data,series)),nextDate=nextHomeworkDate(data,series,now);
   for(const date of occurrenceDates(event)){
@@ -88,6 +98,41 @@ export function homeworkPlan(data:AppData,now=new Date()){
    if(!existing&&!series.stopped&&!series.deleted&&!skipped&&(release<=now||date===nextDate))create.push({...series.task,title:homeworkTitle(data,series,date),id,deadline,created_at:now.toISOString(),completed_at:null});
   }
  }
- return {create,remove,update};
+ return {create,remove,update,...(reassign.length?{reassign}:{})};
 }
 export function homeworkOwner(data:AppData,id:number){for(const series of homeworkSeries(data)){const event=data.recurring.find(e=>e.id===series.event_id);if(!event)continue;for(const date of occurrenceDates(event))if(homeworkId(series.id,date)===id)return {series,date};}return null;}
+
+export function sameWorksheetFamily(a:HomeworkSeries,b:HomeworkSeries){
+ return a.task.course_id===b.task.course_id&&a.task.type===b.task.type&&a.task.title===b.task.title;
+}
+function referenceWorksheetPlan(data:AppData,series:HomeworkSeries,now:Date){
+ const create:Task[]=[],update:Task[]=[],remove:Task[]=[],reassign:{from:number;to:number|null}[]=[];
+ const sheets=series.reference!,next=nextHomeworkDate(data,series,now);
+ const family=homeworkSeries(data).filter(s=>sameWorksheetFamily(s,series));
+ const owned=new Set(family.flatMap(s=>{const event=data.recurring.find(e=>e.id===s.event_id);return event?occurrenceDates(event).map(date=>homeworkId(s.id,date)):[]}));
+ const titles=new Set(sheets.map(sheet=>sheet.title));
+ const prefix=series.task.title+' ';
+ const candidates=data.tasks.filter(t=>t.course_id===series.task.course_id&&t.type===series.task.type&&(owned.has(t.id)||titles.has(t.title)||t.title.startsWith(prefix)&&/^\d+$/.test(t.title.slice(prefix.length))));
+ const keep=new Set<number>();
+ const targetByTitle=new Map<string,number>(),targetByDate=new Map<string,number>();
+ for(const sheet of sheets){
+  if(series.skipped.includes(sheet.date))continue;
+  const id=homeworkId(series.id,sheet.date),existing=data.tasks.find(t=>t.id===id);
+  const sameNumber=candidates.filter(t=>t.title===sheet.title);
+  const released=sheet.visible||homeworkRelease(data,series,sheet.date)<=now||sheet.date===next;
+  if(!released&&!existing&&!sameNumber.length)continue;
+  keep.add(id);targetByTitle.set(sheet.title,id);targetByDate.set(sheet.date,id);
+  const done=sameNumber.find(t=>t.status==='Erledigt')||(existing?.status==='Erledigt'?existing:undefined);
+  const previous=existing||sameNumber[0];
+  const desired:Task={...series.task,...previous,id,title:sheet.title,deadline:sheet.deadline,status:done?'Erledigt':previous?.status??'Offen',completed_at:done?.completed_at??null,created_at:previous?.created_at??now.toISOString()};
+  if(!existing)create.push(desired);
+  else if(existing.title!==desired.title||existing.deadline!==desired.deadline||existing.status!==desired.status)update.push(desired);
+ }
+ for(const task of candidates){
+  if(keep.has(task.id))continue;
+  const owner=family.flatMap(s=>{const e=data.recurring.find(e=>e.id===s.event_id);return e?occurrenceDates(e).filter(d=>homeworkId(s.id,d)===task.id):[]})[0];
+  reassign.push({from:task.id,to:targetByTitle.get(task.title)??(owner?targetByDate.get(owner):undefined)??null});
+  remove.push(task);
+ }
+ return {create,update,remove,reassign};
+}

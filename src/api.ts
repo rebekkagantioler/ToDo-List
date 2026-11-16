@@ -7,6 +7,7 @@ import { catalogEntries, type CourseCatalogEntry, type CourseTemplate } from './
 import { migrateLegacyCancellations } from './attendanceMigration';
 import { attendanceKey } from './statistics';
 import { homeworkPlan } from './homework';
+import { worksheetReassignment } from './worksheetReassignment';
 const tables:Record<string,string>={courses:'courses',tasks:'tasks',sessions:'work_sessions',blocks:'planned_blocks',recurring:'recurring_events',settings:'settings'};
 const columns:Record<string,string[]>={courses:['name','code','semester','ects','hours_per_ects','color','description'],tasks:['title','description','area','type','course_id','deadline','estimate_minutes','priority','status','tracking','completed_at'],sessions:['task_id','course_id','started_at','ended_at','kind','note'],blocks:['task_id','course_id','title','starts_at','ends_at','kind'],recurring:['course_id','title','weekday','start_time','end_time','starts_on','ends_on','auto_track'],settings:['key','value']};
 async function readData(): Promise<AppData> {
@@ -36,6 +37,12 @@ async function prepareData(stored:AppData):Promise<AppData>{
  await mapLimited(plan.update,4,task=>api(`/tasks/${task.id}`,'PUT',task));
  const updated=new Map(plan.update.map(task=>[task.id,task]));
  data.tasks=data.tasks.map(task=>updated.get(task.id)??task);
+ const references=worksheetReassignment(data,plan.reassign??[]);
+ await mapLimited(references.sessions,4,session=>api(`/sessions/${session.id}`,'PUT',session));
+ await mapLimited(references.blocks,4,block=>api(`/blocks/${block.id}`,'PUT',block));
+ // Settings are sequential: a replacement result is saved before its duplicate
+ // is retired, so an interrupted reconciliation keeps the personal score.
+ for(const setting of references.settings)await api(`/settings/${setting.key}`,'PUT',{value:setting.value});
  await mapLimited(plan.remove,4,task=>api(`/tasks/${task.id}`,'DELETE'));
  const removed=new Set(plan.remove.map(task=>task.id));
  data.tasks=data.tasks.filter(task=>!removed.has(task.id));data.blocks=data.blocks.filter(block=>!removed.has(block.task_id!));
@@ -78,7 +85,7 @@ async function performApi(path:string,method='POST',body?:unknown):Promise<any>{
 
 export async function loadCourseCatalog():Promise<CourseCatalogEntry[]>{
  if(!cloud)return catalogEntries(await readData());
- const ready=await cloud.rpc('course_catalog_requirements_ready');if(ready.error||!ready.data)throw new Error('Bitte die aktuelle Datei supabase/course-templates.sql in Supabase ausführen, um Übernahmeoptionen zu aktivieren.');
+ const ready=await cloud.rpc('course_catalog_worksheets_ready');if(ready.error||!ready.data)throw new Error('Bitte die aktuelle Datei supabase/course-templates.sql in Supabase ausführen, um Übernahmeoptionen zu aktivieren.');
  const {data,error}=await cloud.rpc('list_course_catalog');
  if(error)throw new Error('Der Kurskatalog ist noch nicht eingerichtet. Bitte die aktuelle Datei supabase/course-templates.sql in Supabase ausführen.');
  return (data||[]) as CourseCatalogEntry[];
@@ -86,5 +93,6 @@ export async function loadCourseCatalog():Promise<CourseCatalogEntry[]>{
 
 export async function loadCourseSource(sourceKey:string):Promise<CourseTemplate|null>{
  if(!cloud){const r=await fetch(`/api/course-source/${encodeURIComponent(sourceKey)}`);if(!r.ok)throw new Error('Vorlage konnte nicht geprüft werden');return r.json()}
+ const ready=await cloud.rpc('course_catalog_worksheets_ready');if(ready.error||!ready.data)throw new Error('Für den Blätter-Abgleich bitte supabase/course-templates.sql in Supabase ausführen.');
  const {data,error}=await cloud.rpc('get_course_catalog_entry',{source_key:sourceKey});if(error)throw new Error('Kursupdates benötigen die aktuelle Datei supabase/course-templates.sql.');return data;
 }

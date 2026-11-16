@@ -95,3 +95,43 @@ test('Supabase schema: user isolation, cross-user relationships and atomic impor
   await db.exec(`SELECT set_config('request.jwt.claim.sub','${bob}',false);`);assert.equal((await db.query('SELECT * FROM courses')).rows.length,1);
  }finally{await db.close()}
 });
+
+test('Shared numbered sheets use the original actual dates and can repair a legacy copy without another series',async()=>{
+ const {homeworkId,homeworkPlan,homeworkKey}=await import('../src/homework');
+ const {catalogEntries,courseVisibilityKey}=await import('../src/catalog');
+ const db=new PGlite();
+ const alice='11111111-1111-4111-8111-111111111111',bob='22222222-2222-4222-8222-222222222222';
+ try{
+  await db.exec(`CREATE ROLE authenticated;CREATE SCHEMA auth;CREATE TABLE auth.users(id uuid PRIMARY KEY);CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;GRANT USAGE ON SCHEMA auth TO authenticated;INSERT INTO auth.users VALUES ('${alice}'),('${bob}');`);
+  await db.exec(await readFile('supabase/schema.sql','utf8'));
+  await db.exec(await readFile('supabase/optional-task-time.sql','utf8'));
+  await db.exec(await readFile('supabase/course-templates.sql','utf8'));
+  for(const series of ['original','8e82f4b9-654a-4e49-bc22-aaa978cb6cb4'])for(const day of ['2026-10-05','2026-10-12','2026-10-19'])assert.equal(Number((await db.query('SELECT worksheet_task_id($1,$2) AS id',[series,day])).rows[0].id),homeworkId(series,day));
+  await db.exec(`SET ROLE authenticated;SELECT set_config('request.jwt.claim.sub','${alice}',false);INSERT INTO courses(id,name,code,semester,ects,hours_per_ects) VALUES(4,'UE','UE','WS',3,25);INSERT INTO recurring_events(id,course_id,title,weekday,start_time,end_time,starts_on,ends_on) VALUES(1,4,'UE',1,'10:00','11:00','2026-10-05','2026-11-16');INSERT INTO settings(key,value) VALUES('course-catalog-visible-4','true');`);
+  const source:any={courses:[{id:4,name:'UE',code:'UE',semester:'WS',ects:3,hours_per_ects:25,color:'#123456',description:''}],tasks:[],sessions:[],blocks:[],recurring:[{id:1,course_id:4,title:'UE',weekday:1,start_time:'10:00',end_time:'11:00',starts_on:'2026-10-05',ends_on:'2026-11-16',auto_track:0}],settings:[{key:courseVisibilityKey(4),value:'true'}]};
+  const series={id:'original',event_id:1,starts_on:'2026-10-05',skipped:[],numbering:{start:1,from:'2026-10-05'},task:{title:'Blatt',description:'SECRET DESCRIPTION',area:'Universität',type:'Hausaufgabe',course_id:4,deadline:null,estimate_minutes:60,priority:'Mittel',status:'Offen',tracking:1}};
+  source.settings.push({key:homeworkKey(series.id),value:JSON.stringify(series)});
+  await db.query('INSERT INTO settings(key,value) VALUES($1,$2)',[homeworkKey(series.id),JSON.stringify(series)]);
+  source.tasks=homeworkPlan(source,new Date('2026-10-20T12:00')).create;
+  source.tasks[0].deadline='2026-10-04T14:15';source.tasks[0].status='Erledigt';
+  for(const t of source.tasks)await db.query('INSERT INTO tasks(id,course_id,title,area,type,deadline,status) VALUES($1,4,$2,$3,$4,$5,$6)',[t.id,t.title,t.area,t.type,t.deadline,t.status]);
+  await db.exec(`SELECT set_config('request.jwt.claim.sub','${bob}',false)`);
+  const payload:any=(await db.query('SELECT * FROM list_course_catalog()')).rows[0].payload;
+  const expected=catalogEntries(source)[0].payload.homework![0].sheets;
+  assert.deepEqual(payload.homework[0].sheets,expected);
+  assert.ok(!JSON.stringify(payload).includes('Erledigt'));assert.ok(!JSON.stringify(payload).includes('SECRET DESCRIPTION'));assert.ok(!JSON.stringify(payload).includes(alice));
+  await assert.rejects(()=>db.query('SELECT catalog_homework_sheets($1,$2::jsonb,1)',[alice,JSON.stringify(series)]));
+  await db.exec(`INSERT INTO courses(id,name,code,semester,ects,hours_per_ects) VALUES(40,'UE','UE','WS',3,25);INSERT INTO recurring_events(id,course_id,title,weekday,start_time,end_time,starts_on,ends_on) VALUES(10,40,'UE',1,'10:00','11:00','2026-10-05','2026-11-16')`);
+  const legacy={...series,id:'legacy',event_id:10,starts_on:'2026-10-19',numbering:{start:3,from:'2026-10-19'},skipped:['2026-10-19'],task:{...series.task,course_id:40}};
+  await db.query('INSERT INTO settings(key,value) VALUES($1,$2)',[homeworkKey('legacy'),JSON.stringify(legacy)]);
+  await db.query('SELECT apply_course_update(40,$1::jsonb)',[JSON.stringify({...payload,requirements:undefined})]);
+  const local=JSON.parse((await db.query("SELECT value FROM settings WHERE key='homework-series-legacy'")).rows[0].value as string);
+  assert.deepEqual(local.reference,expected);assert.equal(local.starts_on,'2026-10-05');assert.deepEqual(local.skipped,[]);
+  assert.equal((await db.query('SELECT * FROM recurring_events')).rows.length,1);assert.equal((await db.query("SELECT * FROM settings WHERE key LIKE 'homework-series-%'")).rows.length,1);
+  await db.query('SELECT apply_course_update(40,$1::jsonb)',[JSON.stringify(payload)]);
+  assert.equal((await db.query("SELECT * FROM settings WHERE key LIKE 'homework-series-%'")).rows.length,1);
+  const target:any={...source,courses:[{...source.courses[0],id:40}],tasks:[],recurring:[{...source.recurring[0],course_id:40,id:10}],settings:[{key:homeworkKey('legacy'),value:JSON.stringify(local)}]};
+  const plan=homeworkPlan(target,new Date('2026-10-20T12:00'));
+  assert.deepEqual(plan.create.map(t=>[t.title,t.deadline]),source.tasks.map((t:any)=>[t.title,t.deadline]));
+ }finally{await db.close()}
+});

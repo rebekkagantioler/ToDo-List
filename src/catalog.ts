@@ -1,8 +1,8 @@
 import type {AppData, Course, RecurringEvent} from './types';
 import {canceledDates, unplannedDates} from './statistics';
-import {homeworkSeries, type HomeworkSeries} from './homework';
+import {homeworkSeries, homeworkDates, homeworkTitle, homeworkDeadline, homeworkId, type HomeworkSeries} from './homework';
 export type CatalogEvent=Omit<RecurringEvent,'id'|'course_id'>&{source_key?:string;excluded:string[];unplanned?:string[]};
-export type CatalogHomework={source_key:string;event_key:string;title:string;type:string;starts_on:string;estimate_minutes:number;priority:string;tracking:number;numbering?:HomeworkSeries['numbering'];submission?:HomeworkSeries['submission']};
+export type CatalogHomework={source_key:string;event_key:string;title:string;type:string;starts_on:string;estimate_minutes:number;priority:string;tracking:number;numbering?:HomeworkSeries['numbering'];submission?:HomeworkSeries['submission'];sheets?:HomeworkSeries['reference']};
 export const requirementFields=['title','unit','target','kind','dateMode','date','time','bookingDeadline','examScoreType','percentage','pointsPerSheet','maximumPoints','worksheetCount','dropLowest','attendanceRequired','taskType'] as const;
 export type CatalogRequirement=Pick<import('./requirements').CourseRequirement,typeof requirementFields[number]>&{source_key:string;event_key?:string};
 export function generalRequirement(r:Record<string,any>){return Object.fromEntries(requirementFields.filter(k=>r[k]!==undefined).map(k=>[k,r[k]])) as Omit<CatalogRequirement,'source_key'|'event_key'>;}
@@ -16,7 +16,7 @@ export const courseIsVisible=(data:AppData,courseId:number)=>data.settings.some(
 export function catalogEntries(data:AppData):CourseCatalogEntry[]{
  return data.courses.filter(c=>courseIsVisible(data,c.id)).map(c=>{
   const events=data.recurring.filter(e=>e.course_id===c.id).map(e=>({source_key:String(e.id),title:e.title,weekday:e.weekday,start_time:e.start_time,end_time:e.end_time,starts_on:e.starts_on,ends_on:e.ends_on,auto_track:e.auto_track,excluded:canceledDates(data,e.id),unplanned:unplannedDates(data,e.id)}));
-  const homework=homeworkSeries(data).filter(s=>s.task.course_id===c.id&&!s.deleted&&!s.stopped&&events.some(e=>e.source_key===String(s.event_id))).map(s=>({source_key:s.id,event_key:String(s.event_id),title:s.task.title,type:s.task.type,starts_on:s.starts_on,estimate_minutes:s.task.estimate_minutes,priority:s.task.priority,tracking:s.task.tracking,...(s.numbering?{numbering:s.numbering}:{}),...(s.submission?{submission:s.submission}:{})}));
+  const homework=homeworkSeries(data).filter(s=>s.task.course_id===c.id&&!s.deleted&&!s.stopped&&events.some(e=>e.source_key===String(s.event_id))).map(s=>({source_key:s.id,event_key:String(s.event_id),title:s.task.title,type:s.task.type,starts_on:s.starts_on,estimate_minutes:s.task.estimate_minutes,priority:s.task.priority,tracking:s.task.tracking,...(s.numbering?{sheets:homeworkDates(data,s).filter(date=>!s.skipped.includes(date)).map(date=>{const task=data.tasks.find(t=>t.id===homeworkId(s.id,date))??data.tasks.find(t=>t.course_id===c.id&&t.type===s.task.type&&t.title===homeworkTitle(data,s,date));return {date,title:task?.title??homeworkTitle(data,s,date),deadline:task?.deadline??homeworkDeadline(data,s,date),visible:!!task}})}:{}),...(s.numbering?{numbering:s.numbering}:{}),...(s.submission?{submission:s.submission}:{})}));
   let saved:any[]=[];try{const value=JSON.parse(data.settings.find(s=>s.key===`course-requirements-${c.id}`)?.value||'[]');if(Array.isArray(value))saved=value}catch{}
   const requirements=saved.map(r=>({...generalRequirement(r),source_key:r.id,...(r.eventId?{event_key:String(r.eventId)}:{})}));
   const maximum=Number(data.settings.find(s=>s.key===`course-sheet-points-${c.id}`)?.value);

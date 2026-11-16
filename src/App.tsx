@@ -506,15 +506,22 @@ function CourseTransfer({template,origin,onBack,onSave}:{template:CourseTemplate
  <h3>Aufgabenserien <span className="muted">· optional</span></h3>{(template.homework||[]).map(h=><DirectLabel className="transfer-choice" key={h.source_key}><input type="checkbox" checked={homework.includes(h.source_key)} onChange={e=>{setHomework(toggle(homework,h.source_key,e.target.checked));if(e.target.checked&&!events.includes(h.event_key))setEvents([...events,h.event_key])}}/><span><strong>{h.title}</strong><small>{h.type} · {template.events.find(e=>e.source_key===h.event_key)?.title}</small></span></DirectLabel>)}{!template.homework?.length&&<p className="muted">Keine Aufgabenserien freigegeben.</p>}
  <p className="muted">Blattnummern und Termine entsprechen dem ursprünglichen Kurs. Alle bisherigen Blätter werden ergänzt; weitere erscheinen automatisch wöchentlich.</p>
  {!!template.requirements?.length&&<DirectLabel className="transfer-choice"><input type="checkbox" checked={includeRequirements} onChange={e=>setIncludeRequirements(e.target.checked)}/><span><strong>Leistungsanforderungen übernehmen</strong><small>Mindestpunkte, Blattanzahl, Streichregeln und weitere allgemeine Vorgaben. Punkte, Noten und Fortschritt bleiben persönlich.</small></span></DirectLabel>}
- <p className="catalog-copy-note">Einzelne Aufgaben und Arbeitszeiten bleiben persönlich. Spätere Änderungen übernimmst du erst nach deiner Auswahl.{origin?' Deine bestehenden Aufgabenserien bleiben erhalten, wenn du sie hier abwählst.':''}</p>
+ <p className="catalog-copy-note">Bei nummerierten Blättern werden Blattnamen und Abgabetermine aus dem Original übernommen. Arbeitszeiten, Punkte und Erledigt-Status bleiben persönlich. Spätere Änderungen übernimmst du erst nach deiner Auswahl.{origin?' Deine bestehenden Aufgabenserien bleiben erhalten, wenn du sie hier abwählst.':''}</p>
  <div className="modal-actions"><button className="secondary" onClick={onBack}>Abbrechen</button><SaveButton onClick={()=>onSave({...selectedContents,update_course:basics})}>{origin?'Auswahl anwenden':'Kurs übernehmen'}</SaveButton></div></section>
 }
 function CourseUpdates({course,data,mutate}:{course:Course;data:AppData;mutate:any}){
- const origin=courseOrigin(data,course.id),[source,setSource]=useState<CourseTemplate|null>(null),[open,setOpen]=useState(false);
- const key=origin?.source_key,revision=origin?.revision;
- useEffect(()=>{let active=true;setSource(null);if(key)void loadCourseSource(key).then(value=>{if(active)setSource(value)}).catch(()=>{});return()=>{active=false}},[key,revision]);
- if(!origin||!source||source.revision===origin.revision)return null;
- return <><div className="course-update-banner"><div><strong>Änderungen am ursprünglichen Kurs verfügbar</strong><p>Prüfe, welche Daten und Serien du übernehmen möchtest.</p></div><button className="secondary" onClick={()=>setOpen(true)}>Änderungen ansehen</button></div>{open&&<Modal title="Kurs aktualisieren" onClose={()=>setOpen(false)}><CourseTransfer template={source} origin={origin} onBack={()=>setOpen(false)} onSave={async value=>{await mutate(`/course-update/${course.id}`,'POST',value);setOpen(false)}}/></Modal>}</>
+ const origin=courseOrigin(data,course.id),[source,setSource]=useState<CourseTemplate|null>(null),[open,setOpen]=useState(false),[error,setError]=useState('');
+ const key=origin?.source_key,revision=origin?.revision,ownTemplate=courseIsVisible(data,course.id);
+ useEffect(()=>{let active=true;setSource(null);setError('');
+  const load=key?loadCourseSource(key):ownTemplate?Promise.resolve(null):loadCourseCatalog().then(entries=>{const matches=entries.filter(e=>e.payload.source_key!==String(course.id)&&e.payload.course.name===course.name&&e.payload.course.code===course.code&&e.payload.course.semester===course.semester);return matches.length===1?matches[0].payload:null});
+  void load.then(value=>{if(active)setSource(value)}).catch(e=>{if(active)setError(e.message)});return()=>{active=false};
+ },[key,revision,course.id,course.name,course.code,course.semester,ownTemplate]);
+ if(error)return <p className="save-error" role="alert">{error}</p>;
+ if(!source)return null;
+ const changed=!origin||source.revision!==origin.revision;
+ const worksheets=(source.homework||[]).filter(h=>h.sheets?.length);
+ if(!changed&&!worksheets.length)return null;
+ return <><div className="course-update-banner"><div><strong>{changed?'Änderungen am ursprünglichen Kurs verfügbar':'Blätter mit dem ursprünglichen Kurs abgleichen'}</strong><p>Der Abgleich übernimmt alle Blattnummern und Abgabetermine aus dem Original, ergänzt fehlende Blätter und bereinigt doppelte Blätter.</p></div><div className="setting-actions">{worksheets.length>0&&<SaveButton className="secondary" onClick={()=>mutate(`/course-update/${course.id}`,'POST',{...source,source_snapshot:source,homework:worksheets,requirements:undefined,sheet_maximum:undefined,update_course:false})}>Blätter abgleichen</SaveButton>}{changed&&<button className="secondary" onClick={()=>setOpen(true)}>Änderungen ansehen</button>}</div></div>{open&&<Modal title="Kurs aktualisieren" onClose={()=>setOpen(false)}><CourseTransfer template={source} origin={origin??undefined} onBack={()=>setOpen(false)} onSave={async value=>{await mutate(`/course-update/${course.id}`,'POST',value);setOpen(false)}}/></Modal>}</>;
 }
 
 
