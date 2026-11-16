@@ -6,7 +6,7 @@ import {tmpdir} from 'node:os';
 import {transferCourse} from '../server/courseTransfer';
 import {catalogEntries,courseOrigin} from '../src/catalog';
 import {homeworkId,homeworkKey,homeworkPlan,homeworkSeries} from '../src/homework';
-import {courseRequirements,requirementProgress} from '../src/requirements';
+import {courseRequirements,requirementProgress,performanceQuestions} from '../src/requirements';
 import type {AppData} from '../src/types';
 
 test('A new course copy contains every existing task from week one, all open, including historical standalone and future tasks',async()=>{
@@ -22,6 +22,7 @@ test('A new course copy contains every existing task from week one, all open, in
   const roster=[{id:11,title:'Blatt1',deadline:'2026-10-08T14:00',type:'Hausaufgabe'},{id:12,title:'Blatt 2',deadline:'2026-10-15T14:00',type:'Hausaufgabe'},{id:homeworkId('sheets','2026-11-09'),title:'Blatt 3',deadline:'2026-11-09T13:00',type:'Hausaufgabe'},{id:homeworkId('sheets','2026-11-16'),title:'Blatt 4',deadline:'2026-11-16T13:00',type:'Hausaufgabe'},{id:homeworkId('sheets','2026-11-23'),title:'Blatt 5',deadline:'2026-11-23T12:00',type:'Hausaufgabe'},{id:13,title:'Literatur lesen',deadline:'2026-10-01T15:00',type:'Lernen'},{id:14,title:'Übungsgruppe organisieren',deadline:null,type:'Organisation'},{id:15,title:'Referat vorbereiten',deadline:'2026-12-12T15:00',type:'Lernen'},{id:homeworkId('review','2026-12-16'),title:'Nachbereiten',deadline:'2026-12-16T18:00',type:'Nachbereitung'}];
   for(const t of roster)db.prepare("INSERT INTO tasks(id,course_id,title,description,area,type,deadline,status,completed_at) VALUES(?,4,?,'SECRET','Universität',?,?,'Erledigt','2026-11-15T12:00')").run(t.id,t.title,t.type,t.deadline);
   setting('course-requirements-4',[{id:'source-points',title:'Übungsblätter',unit:'Punkte',target:20,current:30,kind:'homework',taskType:'Hausaufgabe',worksheetCount:5}]);
+  setting('course-sheet-points-4',6);
   const template=catalogEntries(allData() as AppData)[0].payload;
   assert.equal(template.tasks?.length,roster.length);assert.ok(!JSON.stringify(template).includes('SECRET'));assert.ok(!JSON.stringify(template).includes('Erledigt'));
   const copied=transferCourse(db,template).id;
@@ -29,6 +30,14 @@ test('A new course copy contains every existing task from week one, all open, in
   assert.equal(rows.length,roster.length);
   for(const expected of roster){const row=rows.find(t=>t.title===expected.title&&t.type===expected.type);assert.equal(row?.deadline,expected.deadline);assert.equal(row?.status,'Offen');assert.equal(row?.completed_at,null);assert.equal(row?.description,'');}
   const requirements=courseRequirements(data,copied!);assert.equal(requirements[0].current,0);assert.equal(requirementProgress(data,requirements[0]).amount,0);
+  for(const row of rows.filter(t=>t.type==='Hausaufgabe')){
+   const questions=performanceQuestions(data,`/tasks/${row.id}`,'PUT',{...row,status:'Erledigt'});
+   assert.equal(questions.length,1,`${row.title}: ask points before completion`);
+   assert.equal(questions[0].label,row.title);assert.equal(questions[0].source,`task-${row.id}`);
+   assert.equal(questions[0].requirement.id,requirements[0].id);assert.equal(questions[0].pointsMaximum,6);
+  }
+  for(const row of rows.filter(t=>t.type!=='Hausaufgabe'))assert.equal(performanceQuestions(data,`/tasks/${row.id}`,'PUT',{...row,status:'Erledigt'}).length,0);
+
   const now=new Date('2026-11-16T14:28'),plan=homeworkPlan(data,now);
   assert.ok(!plan.remove.some(t=>t.course_id===copied));
   for(const t of plan.create.filter(t=>t.course_id===copied))db.prepare('INSERT INTO tasks(id,course_id,title,description,area,type,deadline,status,tracking) VALUES(?,?,?,?,?,?,?,?,?)').run(t.id,t.course_id,t.title,t.description,t.area,t.type,t.deadline,t.status,t.tracking);
