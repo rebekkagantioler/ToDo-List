@@ -85,7 +85,7 @@ async function performApi(path:string,method='POST',body?:unknown):Promise<any>{
 
 export async function loadCourseCatalog():Promise<CourseCatalogEntry[]>{
  if(!cloud)return catalogEntries(await readData());
- const ready=await cloud.rpc('course_catalog_all_tasks_ready');if(ready.error||!ready.data)throw new Error('Bitte die aktuelle Datei supabase/course-templates.sql in Supabase ausführen, um Übernahmeoptionen zu aktivieren.');
+ const ready=await cloud.rpc('course_catalog_series_tasks_ready');if(ready.error||!ready.data)throw new Error('Bitte die aktuelle Datei supabase/course-templates.sql in Supabase ausführen, um Übernahmeoptionen zu aktivieren.');
  const {data,error}=await cloud.rpc('list_course_catalog');
  if(error)throw new Error('Der Kurskatalog ist noch nicht eingerichtet. Bitte die aktuelle Datei supabase/course-templates.sql in Supabase ausführen.');
  return (data||[]) as CourseCatalogEntry[];
@@ -93,6 +93,6 @@ export async function loadCourseCatalog():Promise<CourseCatalogEntry[]>{
 
 export async function loadCourseSource(sourceKey:string):Promise<CourseTemplate|null>{
  if(!cloud){const r=await fetch(`/api/course-source/${encodeURIComponent(sourceKey)}`);if(!r.ok)throw new Error('Vorlage konnte nicht geprüft werden');return r.json()}
- const ready=await cloud.rpc('course_catalog_all_tasks_ready');if(ready.error||!ready.data)throw new Error('Für den Blätter-Abgleich bitte supabase/course-templates.sql in Supabase ausführen.');
+ const ready=await cloud.rpc('course_catalog_series_tasks_ready');if(ready.error||!ready.data)throw new Error('Für den Blätter-Abgleich bitte supabase/course-templates.sql in Supabase ausführen.');
  const {data,error}=await cloud.rpc('get_course_catalog_entry',{source_key:sourceKey});if(error)throw new Error('Kursupdates benötigen die aktuelle Datei supabase/course-templates.sql.');return data;
 }

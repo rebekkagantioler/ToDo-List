@@ -32,13 +32,13 @@ export function catalogEntries(data:AppData):CourseCatalogEntry[]{
     if(owner?.series.id===h.source_key){Object.assign(task,{homework_key:h.source_key,occurrence_on:owner.date});break;}
    }
    return task;
-  });
+  }).filter(t=>t.homework_key&&t.occurrence_on);
   const base={tasks,requirements,...(maximum>0&&Number.isFinite(maximum)?{sheet_maximum:maximum}:{}),course:{name:c.name,code:c.code,semester:c.semester,ects:c.ects,hours_per_ects:c.hours_per_ects,color:c.color,description:''},events,homework};
   return {id:String(c.id),name:c.name,payload:{...base,source_key:String(c.id),revision:JSON.stringify(base)}};
  });
 }
-// Earlier sheets can be standalone tasks or belong to a retired series. Their
-// recorded deadlines are authoritative even when the active series starts later.
+// Earlier numbered series sheets can retain historical task IDs. Their
+// recorded deadlines remain authoritative when the active schedule starts later.
 export function catalogWorksheetSheets(data:AppData,series:HomeworkSeries){
  const event=data.recurring.find(e=>e.id===series.event_id);
  let sheets:WorksheetReference[]=series.reference?series.reference.filter(sheet=>!series.skipped.includes(sheet.date)).map(sheet=>{const task=data.tasks.find(t=>t.id===referenceTaskId(series,sheet));return {...sheet,title:task?.title??sheet.title,deadline:task?.deadline??sheet.deadline,visible:!!task}}):homeworkDates(data,series).filter(date=>!series.skipped.includes(date)).map(date=>{
@@ -47,9 +47,12 @@ export function catalogWorksheetSheets(data:AppData,series:HomeworkSeries){
  });
  if(!event)return sheets;
  const tasks=data.tasks.filter(t=>t.course_id===series.task.course_id&&t.type===series.task.type&&worksheetNumber(t.title,series.task.title)!==null&&t.deadline).sort((a,b)=>a.id-b.id);
+ const allowed=new Set(sheets.map(sheet=>worksheetNumber(sheet.title,series.task.title)).filter(n=>n!==null));
  const seen=new Set<string>();
  for(const task of tasks){
   const number=worksheetNumber(task.title,series.task.title)!;
+  const earlier=series.numbering&&Number(number)<series.numbering.start&&task.deadline!.slice(0,10)<series.numbering.from;
+  if(!allowed.has(number)&&!earlier)continue;
   if(seen.has(number))continue;seen.add(number);
   const previous=sheets.find(sheet=>worksheetNumber(sheet.title,series.task.title)===number);
   const owned=sheets.find(sheet=>referenceTaskId(series,sheet)===task.id)?.date??occurrenceDates(event).find(date=>homeworkId(series.id,date)===task.id);
@@ -63,7 +66,7 @@ export function catalogWorksheetSheets(data:AppData,series:HomeworkSeries){
  return sheets.map(sheet=>sheets.filter(other=>other.date===sheet.date).length>1?{...sheet,key:sheet.key??`number:${worksheetNumber(sheet.title,series.task.title)??sheet.title}`} :sheet).sort((a,b)=>a.date.localeCompare(b.date)||a.title.localeCompare(b.title,undefined,{numeric:true}));
 }
 export function selectCourseContents(template:CourseTemplate,eventKeys:string[],homeworkKeys:string[],_startsOn?:string):CourseTemplate{
- return {...template,source_snapshot:template,tasks:template.tasks?.filter(t=>!t.homework_key||homeworkKeys.includes(t.homework_key)&&template.homework?.some(h=>h.source_key===t.homework_key&&eventKeys.includes(h.event_key))),events:template.events.filter(e=>eventKeys.includes(e.source_key||'')),homework:(template.homework||[]).filter(h=>homeworkKeys.includes(h.source_key)&&eventKeys.includes(h.event_key))};
+ return {...template,source_snapshot:template,tasks:template.tasks?.filter(t=>!!t.homework_key&&homeworkKeys.includes(t.homework_key)&&template.homework?.some(h=>h.source_key===t.homework_key&&eventKeys.includes(h.event_key))),events:template.events.filter(e=>eventKeys.includes(e.source_key||'')),homework:(template.homework||[]).filter(h=>homeworkKeys.includes(h.source_key)&&eventKeys.includes(h.event_key))};
 }
 const normalize=(value:string)=>value.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('de-DE');
 export function searchCatalog(entries:CourseCatalogEntry[],query:string){

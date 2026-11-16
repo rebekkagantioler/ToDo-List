@@ -35,8 +35,8 @@ test('A late join creates past worksheets with original dates and keeps future r
  assert.deepEqual(plan.create.map(t=>[t.title,t.deadline]),[['Blatt 1','2026-10-05T10:00'],['Blatt 2','2026-10-12T10:00'],['Blatt 3','2026-10-19T10:00'],['Blatt 4','2026-10-26T10:00']]);
 });
 
-test('Existing task selection includes independent past tasks and follows the selected routines without sharing completion',()=>{
+test('Task selection includes only selected series and excludes unrelated individual tasks',()=>{
  const template:any={course:{name:'UE',code:'UE',semester:'WS',ects:3,hours_per_ects:25,color:'#123456',description:''},events:[{source_key:'event',title:'UE',weekday:1,start_time:'10:00',end_time:'11:00',starts_on:'2026-10-05',ends_on:'2026-11-30',auto_track:0,excluded:[]}],homework:[{source_key:'series',event_key:'event',title:'Blatt',type:'Hausaufgabe',starts_on:'2026-10-05',estimate_minutes:60,priority:'Mittel',tracking:1}],tasks:[{source_key:'old',title:'Frühere Einzelaufgabe',type:'Lernen',deadline:'2026-10-01T10:00',estimate_minutes:60,priority:'Mittel',tracking:1},{source_key:'sheet',title:'Blatt 1',type:'Hausaufgabe',deadline:'2026-10-05T10:00',estimate_minutes:60,priority:'Mittel',tracking:1,homework_key:'series',occurrence_on:'2026-10-05'}]};
- assert.equal(selectCourseContents(template,['event'],['series']).tasks?.length,2);
- assert.deepEqual(selectCourseContents(template,[],[]).tasks?.map(t=>t.source_key),['old']);
+ assert.deepEqual(selectCourseContents(template,['event'],['series']).tasks?.map(t=>t.source_key),['sheet']);
+ assert.deepEqual(selectCourseContents(template,[],[]).tasks,[]);
 });

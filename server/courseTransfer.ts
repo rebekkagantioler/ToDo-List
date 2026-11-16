@@ -60,12 +60,11 @@ export function transferCourse(db:Database.Database,template:CourseTemplate,targ
   if(template.tasks){
    origin.task_map??={};
    for(const task of template.tasks){
+    if(!task.homework_key||!task.occurrence_on)continue;
+    const localSeries=origin.homework_map[task.homework_key];
+    if(!localSeries)continue;
     if(!task.source_key||!task.title?.trim()||!task.type?.trim())throw new Error('Ungültige Aufgabenvorlage');
-    const localSeries=task.homework_key?origin.homework_map[task.homework_key]:undefined;
-    if(task.homework_key&&!localSeries)continue;
-    let taskId:number|undefined=localSeries&&task.occurrence_on?homeworkId(localSeries,task.sheet_key??task.occurrence_on):origin.task_map[task.source_key];
-    if(!taskId&&target){const found=db.prepare('SELECT id FROM tasks WHERE course_id=? AND title=? AND type=? AND deadline IS ? ORDER BY id LIMIT 1').get(id,task.title,task.type,task.deadline??null) as {id:number}|undefined;taskId=found?.id;}
-    taskId??=Math.floor(Math.random()*3500000000000000)+1;
+    const taskId=homeworkId(localSeries,task.sheet_key??task.occurrence_on);
     // Status and completion are always personal; a new copy starts open.
     db.prepare("INSERT INTO tasks(id,course_id,title,description,area,type,deadline,estimate_minutes,priority,status,tracking,completed_at) VALUES(?,?,?,'','Universität',?,?,?,?, 'Offen',?,NULL) ON CONFLICT(id) DO NOTHING").run(taskId,id,task.title,task.type,task.deadline??null,task.estimate_minutes??60,task.priority||'Mittel',task.tracking?1:0);
     const existing=db.prepare('SELECT course_id FROM tasks WHERE id=?').get(taskId) as {course_id:number}|undefined;
