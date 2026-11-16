@@ -164,5 +164,21 @@ test('Shared numbered sheets use the original actual dates and can repair a lega
   assert.equal(collisionPlan.create.length,5);assert.equal(new Set(collisionPlan.create.map(t=>t.id)).size,5);
   assert.deepEqual(collisionPlan.create.filter(t=>t.title==='Blatt 1'||t.title==='Blatt 2').map(t=>[t.title,t.deadline]),[['Blatt 1','2026-10-13T11:08'],['Blatt 2','2026-10-19T13:45']]);
   collisionData.tasks=collisionPlan.create;assert.deepEqual(homeworkPlan(collisionData,new Date('2026-11-16T14:28')),{create:[],remove:[],update:[]});
+
+  for(const title of ['Blatt1','Blatt 1','Blatt 1','Blatt   1','Blatt 01']){
+   await db.exec(`SELECT set_config('request.jwt.claim.sub','${alice}',false)`);
+   await db.query("UPDATE tasks SET title=$1,deadline='2026-10-08T14:00' WHERE id=11",[title]);
+   await db.exec(`SELECT set_config('request.jwt.claim.sub','${bob}',false)`);
+   const analysis:any=(await db.query('SELECT get_course_catalog_entry($1) AS p',[payload.source_key])).rows[0].p;
+   const first=analysis.homework[0].sheets.filter((r:any)=>/1$/.test(r.title.replace(/\s/g,'')));
+   assert.equal(first.length,1);assert.equal(first[0].title,title);assert.equal(first[0].deadline,'2026-10-08T14:00');
+   await db.query('SELECT apply_course_update(40,$1::jsonb)',[JSON.stringify(analysis)]);
+   const analysisSeries=JSON.parse((await db.query("SELECT value FROM settings WHERE key='homework-series-legacy'")).rows[0].value as string);
+   const analysisData:any={...friend,tasks:[{...series.task,id:88,course_id:40,title:'Blatt 1',deadline:'2026-10-09T10:00'}],settings:[{key:homeworkKey('legacy'),value:JSON.stringify(analysisSeries)}]};
+   const analysisPlan=homeworkPlan(analysisData,new Date('2026-11-16T14:28'));
+   assert.equal(analysisPlan.create.length,5);assert.equal(analysisPlan.remove[0].id,88);
+   assert.equal(analysisPlan.create.find(t=>t.title===title)?.deadline,'2026-10-08T14:00');
+   analysisData.tasks=analysisPlan.create;assert.deepEqual(homeworkPlan(analysisData,new Date('2026-11-16T14:28')),{create:[],remove:[],update:[]});
+  }
  }finally{await db.close()}
 });

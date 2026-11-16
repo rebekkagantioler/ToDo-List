@@ -94,3 +94,20 @@ test('Two actual numbered sheets are both exported when their deadlines resolve 
  for(const sheet of sheets.filter(s=>s.visible))assert.equal(homeworkOwner(friend,referenceTaskId(local,sheet))?.date,sheet.date);
  friend.tasks=plan.create;assert.deepEqual(homeworkPlan(friend,when),{create:[],remove:[],update:[]});
 });
+
+test('Analysis Blatt 1 due 8 October at 14:00 is copied with or without spaces in its original name',()=>{
+ for(const title of ['Blatt1','Blatt 1','Blatt 1','Blatt   1','Blatt 01',' Blatt 1 ']){
+  const data=fixture();data.recurring[0].weekday=4;data.recurring[0].starts_on='2026-10-15';
+  const series={...base,starts_on:'2026-10-15',numbering:{start:2,from:'2026-10-15'}};
+  data.settings.push({key:homeworkKey(base.id),value:JSON.stringify(series)});
+  data.tasks=[task(11,title,'2026-10-08T14:00'),task(12,'Blatt 2','2026-10-15T14:00')];
+  const sheets=catalogEntries(data)[0].payload.homework![0].sheets!;
+  assert.deepEqual(sheets.filter(s=>s.visible).map(s=>[s.title,s.deadline]),[[title,'2026-10-08T14:00'],['Blatt 2','2026-10-15T14:00']]);
+  const friend=structuredClone(data);friend.settings=[{key:homeworkKey(base.id),value:JSON.stringify({...series,reference:sheets})}];
+  friend.tasks=[task(51,'Blatt 1','2026-10-09T10:00')];
+  const when=new Date('2026-10-15T09:00'),plan=homeworkPlan(friend,when);
+  assert.equal(plan.remove.length,1);assert.equal(plan.remove[0].id,51);
+  const copied=plan.create.find(t=>t.title===title);assert.equal(copied?.deadline,'2026-10-08T14:00');
+  friend.tasks=plan.create;assert.deepEqual(homeworkPlan(friend,when),{create:[],remove:[],update:[]});
+ }
+});

@@ -1,6 +1,6 @@
 import type {AppData, Course, RecurringEvent} from './types';
 import {canceledDates, unplannedDates, occurrenceDates} from './statistics';
-import {homeworkSeries, homeworkDates, homeworkTitle, homeworkDeadline, homeworkId, referenceTaskId, type WorksheetReference, type HomeworkSeries} from './homework';
+import {homeworkSeries, homeworkDates, homeworkTitle, homeworkDeadline, homeworkId, referenceTaskId, worksheetNumber, type WorksheetReference, type HomeworkSeries} from './homework';
 export type CatalogEvent=Omit<RecurringEvent,'id'|'course_id'>&{source_key?:string;excluded:string[];unplanned?:string[]};
 export type CatalogHomework={source_key:string;event_key:string;title:string;type:string;starts_on:string;estimate_minutes:number;priority:string;tracking:number;numbering?:HomeworkSeries['numbering'];submission?:HomeworkSeries['submission'];sheets?:HomeworkSeries['reference']};
 export const requirementFields=['title','unit','target','kind','dateMode','date','time','bookingDeadline','examScoreType','percentage','pointsPerSheet','maximumPoints','worksheetCount','dropLowest','attendanceRequired','taskType'] as const;
@@ -33,21 +33,21 @@ export function catalogWorksheetSheets(data:AppData,series:HomeworkSeries){
   return {date,title:task?.title??homeworkTitle(data,series,date),deadline:task?.deadline??homeworkDeadline(data,series,date),visible:!!task};
  });
  if(!event)return sheets;
- const prefix=series.task.title+' ';
- const tasks=data.tasks.filter(t=>t.course_id===series.task.course_id&&t.type===series.task.type&&t.title.startsWith(prefix)&&/^\d+$/.test(t.title.slice(prefix.length))&&t.deadline).sort((a,b)=>a.id-b.id);
+ const tasks=data.tasks.filter(t=>t.course_id===series.task.course_id&&t.type===series.task.type&&worksheetNumber(t.title,series.task.title)!==null&&t.deadline).sort((a,b)=>a.id-b.id);
  const seen=new Set<string>();
  for(const task of tasks){
-  if(seen.has(task.title))continue;seen.add(task.title);
-  const previous=sheets.find(sheet=>sheet.title===task.title);
+  const number=worksheetNumber(task.title,series.task.title)!;
+  if(seen.has(number))continue;seen.add(number);
+  const previous=sheets.find(sheet=>worksheetNumber(sheet.title,series.task.title)===number);
   const owned=sheets.find(sheet=>referenceTaskId(series,sheet)===task.id)?.date??occurrenceDates(event).find(date=>homeworkId(series.id,date)===task.id);
   const day=new Date(`${task.deadline!.slice(0,10)}T12:00:00`);if(!Number.isFinite(day.getTime()))continue;
   day.setDate(day.getDate()+(series.submission?.days_before??0));
   day.setDate(day.getDate()+(event.weekday-day.getDay()+7)%7);
   const date=owned??`${day.getFullYear()}-${String(day.getMonth()+1).padStart(2,'0')}-${String(day.getDate()).padStart(2,'0')}`;
-  sheets=sheets.filter(s=>s.title!==task.title);
+  sheets=sheets.filter(s=>worksheetNumber(s.title,series.task.title)!==number);
   sheets.push({...(previous?.key?{key:previous.key}:{}),date,title:task.title,deadline:task.deadline!,visible:true});
  }
- return sheets.map(sheet=>sheets.filter(other=>other.date===sheet.date).length>1?{...sheet,key:sheet.key??`number:${sheet.title.slice(sheet.title.lastIndexOf(' ')+1)}`} :sheet).sort((a,b)=>a.date.localeCompare(b.date)||a.title.localeCompare(b.title,undefined,{numeric:true}));
+ return sheets.map(sheet=>sheets.filter(other=>other.date===sheet.date).length>1?{...sheet,key:sheet.key??`number:${worksheetNumber(sheet.title,series.task.title)??sheet.title}`} :sheet).sort((a,b)=>a.date.localeCompare(b.date)||a.title.localeCompare(b.title,undefined,{numeric:true}));
 }
 export function selectCourseContents(template:CourseTemplate,eventKeys:string[],homeworkKeys:string[],_startsOn?:string):CourseTemplate{
  return {...template,source_snapshot:template,events:template.events.filter(e=>eventKeys.includes(e.source_key||'')),homework:(template.homework||[]).filter(h=>homeworkKeys.includes(h.source_key)&&eventKeys.includes(h.event_key))};

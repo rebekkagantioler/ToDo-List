@@ -5,6 +5,12 @@ export type HomeworkSeries={id:string; event_id:number; starts_on:string; task:O
 export const homeworkKey=(id:string)=>`homework-series-${id}`;
 export function homeworkSeries(data:AppData):HomeworkSeries[]{return data.settings.filter(s=>s.key.startsWith('homework-series-')).flatMap(s=>{try{const v=JSON.parse(s.value);return v&&typeof v.id==='string'&&v.task&&Array.isArray(v.skipped)?[v]:[]}catch{return []}})}
 export function homeworkId(series:string,date:string){let hash=1469598103934665603n;for(const c of `${series}:${date}`)hash=BigInt.asUintN(64,(hash^BigInt(c.charCodeAt(0)))*1099511628211n);return Number(hash%4000000000000000n)+4000000000000000;}
+export function worksheetNumber(title:string,prefix:string):string|null{
+ const compact=title.replace(/\s+/gu,''),base=prefix.replace(/\s+/gu,'');
+ if(!compact.startsWith(base))return null;
+ const number=compact.slice(base.length);
+ return /^[0-9]+$/.test(number)?number.replace(/^0+(?=\d)/,''):null;
+}
 export function referenceTaskId(series:HomeworkSeries,sheet:WorksheetReference){return homeworkId(series.id,sheet.key??sheet.date);}
 export function nextDeadline(data:AppData,courseId:number|null,now=new Date()):string{
  if(courseId===null)return '';
@@ -119,17 +125,17 @@ function referenceWorksheetPlan(data:AppData,series:HomeworkSeries,now:Date){
  const family=homeworkSeries(data).filter(s=>sameWorksheetFamily(s,series));
  const owned=new Set(family.flatMap(s=>{const event=data.recurring.find(e=>e.id===s.event_id);return [...(event?occurrenceDates(event).map(date=>homeworkId(s.id,date)):[]),...(s.reference?.map(sheet=>referenceTaskId(s,sheet))??[])]}));
  const titles=new Set(sheets.map(sheet=>sheet.title));
- const prefix=series.task.title+' ';
- const candidates=data.tasks.filter(t=>t.course_id===series.task.course_id&&t.type===series.task.type&&(owned.has(t.id)||titles.has(t.title)||t.title.startsWith(prefix)&&/^\d+$/.test(t.title.slice(prefix.length))));
+ const identity=(title:string)=>worksheetNumber(title,series.task.title)??title;
+ const candidates=data.tasks.filter(t=>t.course_id===series.task.course_id&&t.type===series.task.type&&(owned.has(t.id)||titles.has(t.title)||worksheetNumber(t.title,series.task.title)!==null));
  const keep=new Set<number>();
  const targetByTitle=new Map<string,number>(),targetByDate=new Map<string,number>();
  for(const sheet of sheets){
   if(series.skipped.includes(sheet.date))continue;
   const id=referenceTaskId(series,sheet),existing=data.tasks.find(t=>t.id===id);
-  const sameNumber=candidates.filter(t=>t.title===sheet.title);
+  const sameNumber=candidates.filter(t=>identity(t.title)===identity(sheet.title));
   const released=sheet.visible||homeworkRelease(data,series,sheet.date)<=now||sheet.date===next;
   if(!released&&!existing&&!sameNumber.length)continue;
-  keep.add(id);targetByTitle.set(sheet.title,id);targetByDate.set(sheet.date,id);
+  keep.add(id);targetByTitle.set(identity(sheet.title),id);targetByDate.set(sheet.date,id);
   const done=sameNumber.find(t=>t.status==='Erledigt')||(existing?.status==='Erledigt'?existing:undefined);
   const previous=existing||sameNumber[0];
   const desired:Task={...series.task,...previous,id,title:sheet.title,deadline:sheet.deadline,status:done?'Erledigt':previous?.status??'Offen',completed_at:done?.completed_at??null,created_at:previous?.created_at??now.toISOString()};
@@ -139,7 +145,7 @@ function referenceWorksheetPlan(data:AppData,series:HomeworkSeries,now:Date){
  for(const task of candidates){
   if(keep.has(task.id))continue;
   const owner=family.flatMap(s=>{const e=data.recurring.find(e=>e.id===s.event_id);return e?occurrenceDates(e).filter(d=>homeworkId(s.id,d)===task.id):[]})[0];
-  reassign.push({from:task.id,to:targetByTitle.get(task.title)??(owner?targetByDate.get(owner):undefined)??null});
+  reassign.push({from:task.id,to:targetByTitle.get(identity(task.title))??(owner?targetByDate.get(owner):undefined)??null});
   remove.push(task);
  }
  return {create,update,remove,reassign};
