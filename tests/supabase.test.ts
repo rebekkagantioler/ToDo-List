@@ -46,12 +46,21 @@ test('Supabase schema: user isolation, cross-user relationships and atomic impor
   assert.equal((await db.query('SELECT * FROM courses')).rows.length,1);
   // Shared routines are templates only; selection controls importing and updating.
   await db.exec(`SELECT set_config('request.jwt.claim.sub','${alice}',false);INSERT INTO settings(key,value) VALUES('homework-series-source','{"id":"source","event_id":42,"starts_on":"2026-10-19","skipped":[],"task":{"title":"VO nachbereiten","description":"SECRET ROUTINE","course_id":1,"type":"Nachbereitung","estimate_minutes":45,"priority":"Mittel","tracking":1}}');SELECT set_config('request.jwt.claim.sub','${bob}',false);`);
+  await db.exec(`SELECT set_config('request.jwt.claim.sub','${alice}',false);INSERT INTO settings(key,value) VALUES('course-requirements-1','[{"id":"private-id","title":"Blattpunkte","unit":"Punkte","kind":"homework","target":50,"current":27,"worksheetCount":12,"dropLowest":2,"examGrade":"SECRET GRADE","worksheetFinalized":true,"taskType":"Nachbereitung","eventId":42}]');SELECT set_config('request.jwt.claim.sub','${bob}',false);`);
   const withRoutine:any=(await db.query('SELECT get_course_catalog_entry($1) AS p',[shared.payload.source_key])).rows[0].p;
   assert.equal(withRoutine.homework.length,1);assert.ok(!JSON.stringify(withRoutine).includes('SECRET ROUTINE'));
+  assert.equal(withRoutine.requirements[0].target,50);assert.equal(withRoutine.requirements[0].current,undefined);assert.ok(!JSON.stringify(withRoutine).includes('SECRET GRADE'));assert.ok(!JSON.stringify(withRoutine).includes('private-id'));
   const declined={...withRoutine,events:[],homework:[],update_course:false};
   await db.query('SELECT apply_course_update($1,$2::jsonb)',[copiedId,JSON.stringify(declined)]);
   assert.equal((await db.query("SELECT * FROM settings WHERE key LIKE 'homework-series-%'")).rows.length,0);
   await db.query('SELECT apply_course_update($1,$2::jsonb)',[copiedId,JSON.stringify({...withRoutine,update_course:false})]);
+  const requirements=JSON.parse((await db.query("SELECT value FROM settings WHERE key=$1",['course-requirements-'+copiedId])).rows[0].value as string);
+  assert.equal(requirements.length,1);assert.equal(requirements[0].current,0);assert.equal(requirements[0].worksheetCount,12);assert.equal(requirements[0].dropLowest,2);assert.equal(requirements[0].worksheetFinalized,undefined);assert.notEqual(requirements[0].eventId,42);
+  requirements[0].current=9;
+  await db.query('UPDATE settings SET value=$1 WHERE key=$2',[JSON.stringify(requirements),'course-requirements-'+copiedId]);
+  await db.query('SELECT apply_course_update($1,$2::jsonb)',[copiedId,JSON.stringify(withRoutine)]);
+  const preserved=JSON.parse((await db.query('SELECT value FROM settings WHERE key=$1',['course-requirements-'+copiedId])).rows[0].value as string);
+  assert.equal(preserved.length,1);assert.equal(preserved[0].current,9);assert.equal(preserved[0].id,requirements[0].id);
   const imported:any=(await db.query("SELECT value FROM settings WHERE key LIKE 'homework-series-%'")).rows[0];
   const routine=JSON.parse(imported.value);assert.equal(routine.task.course_id,Number(copiedId));assert.notEqual(routine.event_id,42);assert.equal(routine.task.description,'');
   assert.equal((await db.query('SELECT * FROM tasks')).rows.length,0);

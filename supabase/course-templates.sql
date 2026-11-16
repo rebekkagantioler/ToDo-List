@@ -79,12 +79,25 @@ BEGIN parsed:=value::jsonb;IF jsonb_typeof(parsed)='object' THEN RETURN parsed;E
 EXCEPTION WHEN invalid_text_representation THEN RETURN '{}'::jsonb;END; $$;
 REVOKE ALL ON FUNCTION public.catalog_object(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.catalog_object(text) TO authenticated;
+CREATE OR REPLACE FUNCTION public.catalog_array(value text) RETURNS jsonb LANGUAGE plpgsql IMMUTABLE SET search_path=public AS $$
+DECLARE parsed jsonb;
+BEGIN parsed:=value::jsonb;IF jsonb_typeof(parsed)='array' THEN RETURN parsed;END IF;RETURN '[]'::jsonb;
+EXCEPTION WHEN invalid_text_representation THEN RETURN '[]'::jsonb;END; $$;
+REVOKE ALL ON FUNCTION public.catalog_array(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.catalog_array(text) TO authenticated;
+CREATE OR REPLACE FUNCTION public.general_requirement(value jsonb) RETURNS jsonb LANGUAGE sql IMMUTABLE SET search_path=public AS $$
+ SELECT coalesce(jsonb_object_agg(key,v),'{}'::jsonb) FROM jsonb_each(value) AS item(key,v) WHERE key IN ('title','unit','target','kind','dateMode','date','time','bookingDeadline','examScoreType','percentage','pointsPerSheet','maximumPoints','worksheetCount','dropLowest','attendanceRequired','taskType');
+$$;
+REVOKE ALL ON FUNCTION public.general_requirement(jsonb) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.general_requirement(jsonb) TO authenticated;
 CREATE OR REPLACE FUNCTION public.course_catalog_payload(owner_id uuid,course_id bigint) RETURNS jsonb
 LANGUAGE sql STABLE SECURITY INVOKER SET search_path=public AS $$
  SELECT jsonb_build_object(
  'course',jsonb_build_object('name',c.name,'code',c.code,'semester',c.semester,'ects',c.ects,'hours_per_ects',c.hours_per_ects,'color',c.color,'description',''),
  'events',coalesce((SELECT jsonb_agg(jsonb_build_object('source_key',md5(e.user_id::text||':'||e.id),'title',e.title,'weekday',e.weekday,'start_time',e.start_time,'end_time',e.end_time,'starts_on',e.starts_on,'ends_on',e.ends_on,'auto_track',e.auto_track,'excluded',public.catalog_exclusions(s.value),'unplanned',public.catalog_exclusions(u.value)) ORDER BY e.starts_on,e.weekday,e.start_time,e.title,e.id)
  FROM recurring_events e LEFT JOIN settings s ON s.user_id=e.user_id AND s.key='lecture-exclusions-'||e.id LEFT JOIN public.settings u ON u.user_id=e.user_id AND u.key='lecture-unplanned-'||e.id WHERE e.user_id=c.user_id AND e.course_id=c.id),'[]'::jsonb),
+ 'sheet_maximum',(SELECT to_jsonb(value::numeric) FROM settings WHERE user_id=c.user_id AND key='course-sheet-points-'||c.id AND value ~ '^[0-9]+([.][0-9]+)?$' AND value::numeric>0),
+ 'requirements',coalesce((SELECT jsonb_agg(public.general_requirement(r)||jsonb_build_object('source_key',md5(c.user_id::text||':'||(r->>'id')))||CASE WHEN r->>'eventId' IS NOT NULL THEN jsonb_build_object('event_key',md5(c.user_id::text||':'||(r->>'eventId'))) ELSE '{}'::jsonb END) FROM settings rs CROSS JOIN LATERAL jsonb_array_elements(public.catalog_array(rs.value)) r WHERE rs.user_id=c.user_id AND rs.key='course-requirements-'||c.id),'[]'::jsonb),
  'homework',coalesce((SELECT jsonb_agg(jsonb_strip_nulls(jsonb_build_object('source_key',md5(s.user_id::text||':'||s.key),'event_key',md5(e.user_id::text||':'||e.id),'title',v.obj->'task'->>'title','type',v.obj->'task'->>'type','starts_on',v.obj->>'starts_on','estimate_minutes',v.obj->'task'->'estimate_minutes','priority',v.obj->'task'->>'priority','tracking',v.obj->'task'->'tracking','numbering',v.obj->'numbering','submission',v.obj->'submission')) ORDER BY s.key)
  FROM settings s CROSS JOIN LATERAL (SELECT public.catalog_object(s.value) AS obj) v JOIN recurring_events e ON e.user_id=s.user_id AND e.id::text=v.obj->>'event_id' AND e.course_id=c.id
  WHERE s.user_id=c.user_id AND s.key LIKE 'homework-series-%' AND v.obj->'task'->>'course_id'=c.id::text AND coalesce(v.obj->>'deleted','false')<>'true' AND coalesce(v.obj->>'stopped','false')<>'true'),'[]'::jsonb))
@@ -93,10 +106,10 @@ $$;
 REVOKE ALL ON FUNCTION public.course_catalog_payload(uuid,bigint) FROM PUBLIC;
 CREATE OR REPLACE FUNCTION public.list_course_catalog() RETURNS TABLE(id text,name text,payload jsonb)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$
- SELECT DISTINCT ON (jsonb_build_object('course',x.base->'course','events',(SELECT coalesce(jsonb_agg(v-'source_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'events') v),'homework',(SELECT coalesce(jsonb_agg(v-'source_key'-'event_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'homework') v))::text) x.source_key,x.name,x.base||jsonb_build_object('source_key',x.source_key,'revision',md5(x.base::text)) FROM (
+ SELECT DISTINCT ON (jsonb_build_object('sheet_maximum',x.base->'sheet_maximum','requirements',(SELECT coalesce(jsonb_agg(v-'source_key'-'event_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'requirements') v),'course',x.base->'course','events',(SELECT coalesce(jsonb_agg(v-'source_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'events') v),'homework',(SELECT coalesce(jsonb_agg(v-'source_key'-'event_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'homework') v))::text) x.source_key,x.name,x.base||jsonb_build_object('source_key',x.source_key,'revision',md5(x.base::text)) FROM (
  SELECT c.name,md5(c.user_id::text||':'||c.id) AS source_key,public.course_catalog_payload(c.user_id,c.id) AS base
  FROM courses c WHERE auth.uid() IS NOT NULL AND EXISTS(SELECT 1 FROM settings s WHERE s.user_id=c.user_id AND s.key='course-catalog-visible-'||c.id AND s.value='true')
- ) x ORDER BY jsonb_build_object('course',x.base->'course','events',(SELECT coalesce(jsonb_agg(v-'source_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'events') v),'homework',(SELECT coalesce(jsonb_agg(v-'source_key'-'event_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'homework') v))::text,x.source_key;
+ ) x ORDER BY jsonb_build_object('sheet_maximum',x.base->'sheet_maximum','requirements',(SELECT coalesce(jsonb_agg(v-'source_key'-'event_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'requirements') v),'course',x.base->'course','events',(SELECT coalesce(jsonb_agg(v-'source_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'events') v),'homework',(SELECT coalesce(jsonb_agg(v-'source_key'-'event_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'homework') v))::text,x.source_key;
 $$;
 CREATE OR REPLACE FUNCTION public.get_course_catalog_entry(source_key text) RETURNS jsonb
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$
@@ -107,7 +120,7 @@ REVOKE ALL ON FUNCTION public.get_course_catalog_entry(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_course_catalog_entry(text) TO authenticated;
 CREATE OR REPLACE FUNCTION public.apply_course_update(target_course bigint,template jsonb) RETURNS jsonb
 LANGUAGE plpgsql SECURITY INVOKER SET search_path=public AS $$
-DECLARE uid uuid:=auth.uid(); cid bigint:=target_course; c jsonb:=template->'course'; e jsonb; h jsonb; origin jsonb; ekey text; hid text; eid bigint; idx int:=0; previous jsonb;
+DECLARE uid uuid:=auth.uid(); cid bigint:=target_course; c jsonb:=template->'course'; e jsonb; h jsonb; origin jsonb; ekey text; hid text; eid bigint; idx int:=0; previous jsonb; r jsonb; requirements jsonb; rid text; old_requirement jsonb; clean jsonb;
 BEGIN
  IF uid IS NULL THEN RAISE EXCEPTION 'Anmeldung erforderlich';END IF;
  IF coalesce(trim(c->>'name'),'')='' OR coalesce(trim(c->>'semester'),'')='' OR jsonb_typeof(template->'events') IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'Ungültige Kursvorlage'; END IF;
@@ -146,9 +159,28 @@ BEGIN
  SELECT public.catalog_object(value) INTO previous FROM settings WHERE user_id=uid AND key='homework-series-'||hid;
  IF previous IS NULL OR previous->>'deleted'='true' OR previous->>'stopped'='true' THEN CONTINUE;END IF;
  ELSE hid:=md5(random()::text||clock_timestamp()::text);END IF;
- INSERT INTO settings(key,value) VALUES('homework-series-'||hid,(coalesce(previous,'{}'::jsonb)||jsonb_build_object('id',hid,'event_id',eid,'starts_on',coalesce(previous->>'starts_on',h->>'starts_on'),'skipped',coalesce(previous->'skipped','[]'::jsonb),'task',jsonb_build_object('title',h->>'title','description',coalesce(previous->'task'->>'description',''),'area','Universität','type',coalesce(h->>'type','Hausaufgabe'),'course_id',cid,'deadline',NULL,'estimate_minutes',coalesce((h->>'estimate_minutes')::int,60),'priority',coalesce(h->>'priority','Mittel'),'status','Offen','tracking',coalesce((h->>'tracking')::int,1)),'numbering',h->'numbering','submission',h->'submission'))::text) ON CONFLICT(user_id,key) DO UPDATE SET value=excluded.value;
+ INSERT INTO settings(key,value) VALUES('homework-series-'||hid,(coalesce(previous,'{}'::jsonb)||jsonb_build_object('id',hid,'event_id',eid,'starts_on',least(previous->>'starts_on',h->>'starts_on'),'skipped',coalesce(previous->'skipped','[]'::jsonb),'task',jsonb_build_object('title',h->>'title','description',coalesce(previous->'task'->>'description',''),'area','Universität','type',coalesce(h->>'type','Hausaufgabe'),'course_id',cid,'deadline',NULL,'estimate_minutes',coalesce((h->>'estimate_minutes')::int,60),'priority',coalesce(h->>'priority','Mittel'),'status','Offen','tracking',coalesce((h->>'tracking')::int,1)),'numbering',h->'numbering','submission',h->'submission'))::text) ON CONFLICT(user_id,key) DO UPDATE SET value=excluded.value;
  origin:=jsonb_set(origin,ARRAY['homework_map',h->>'source_key'],to_jsonb(hid));
  END LOOP;
+ IF (template->>'sheet_maximum')::numeric>0 THEN
+ INSERT INTO settings(key,value) VALUES('course-sheet-points-'||cid,template->>'sheet_maximum') ON CONFLICT(user_id,key) DO UPDATE SET value=excluded.value;
+ END IF;
+ IF jsonb_typeof(template->'requirements')='array' THEN
+ SELECT public.catalog_array(value) INTO requirements FROM settings WHERE user_id=uid AND key='course-requirements-'||cid;
+ requirements:=coalesce(requirements,'[]'::jsonb);
+ origin:=jsonb_set(origin,'{requirement_map}',coalesce(origin->'requirement_map','{}'::jsonb));
+ FOR r IN SELECT value FROM jsonb_array_elements(template->'requirements') LOOP
+ rid:=origin->'requirement_map'->>(r->>'source_key');old_requirement:=NULL;
+ SELECT value INTO old_requirement FROM jsonb_array_elements(requirements) WHERE value->>'id'=rid;
+ IF rid IS NOT NULL AND old_requirement IS NULL THEN CONTINUE;END IF;
+ rid:=coalesce(rid,md5(random()::text||clock_timestamp()::text));
+ clean:=coalesce(old_requirement,'{}'::jsonb)||public.general_requirement(r)||jsonb_build_object('id',rid,'current',coalesce(old_requirement->'current','0'::jsonb),'eventId',origin->'event_map'->(r->>'event_key'));
+ SELECT coalesce(jsonb_agg(value),'[]'::jsonb) INTO requirements FROM jsonb_array_elements(requirements) WHERE value->>'id'<>rid;
+ requirements:=requirements||jsonb_build_array(clean);
+ origin:=jsonb_set(origin,ARRAY['requirement_map',r->>'source_key'],to_jsonb(rid));
+ END LOOP;
+ INSERT INTO settings(key,value) VALUES('course-requirements-'||cid,requirements::text) ON CONFLICT(user_id,key) DO UPDATE SET value=excluded.value;
+ END IF;
  IF template->>'source_key' IS NOT NULL THEN
  origin:=origin||jsonb_build_object('source_key',template->>'source_key','revision',template->>'revision','snapshot',coalesce(template->'source_snapshot',template));
  INSERT INTO settings(key,value) VALUES('course-origin-'||cid,origin::text) ON CONFLICT(user_id,key) DO UPDATE SET value=excluded.value;
@@ -158,6 +190,9 @@ END; $$;
 REVOKE ALL ON FUNCTION public.apply_course_update(bigint,jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.apply_course_update(bigint,jsonb) TO authenticated;
 CREATE OR REPLACE FUNCTION public.copy_course_template(template jsonb) RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path=public AS $$ SELECT public.apply_course_update(NULL,template) $$;
+CREATE OR REPLACE FUNCTION public.course_catalog_requirements_ready() RETURNS boolean LANGUAGE sql STABLE AS $$ SELECT true $$;
+REVOKE ALL ON FUNCTION public.course_catalog_requirements_ready() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.course_catalog_requirements_ready() TO authenticated;
 CREATE OR REPLACE FUNCTION public.course_catalog_transfer_ready() RETURNS boolean LANGUAGE sql STABLE AS $$ SELECT true $$;
 REVOKE ALL ON FUNCTION public.course_catalog_transfer_ready() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.course_catalog_transfer_ready() TO authenticated;

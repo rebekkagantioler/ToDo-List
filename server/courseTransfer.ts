@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import type {CourseOrigin,CourseTemplate} from '../src/catalog';
+import {generalRequirement,type CourseOrigin,type CourseTemplate} from '../src/catalog';
 export function transferCourse(db:Database.Database,template:CourseTemplate,target?:number){
  return db.transaction(()=>{
   const c=template.course;if(!c?.name?.trim()||!c.semester?.trim()||!Array.isArray(template.events)||!Number.isFinite(c.ects)||c.ects<0||!(c.hours_per_ects>0))throw new Error('Ungültige Kursvorlage');
@@ -28,9 +28,25 @@ export function transferCourse(db:Database.Database,template:CourseTemplate,targ
    let local=origin.homework_map[h.source_key];const row=local?db.prepare('SELECT value FROM settings WHERE key=?').get(`homework-series-${local}`) as {value:string}|undefined:undefined;
    const existing=row?JSON.parse(row.value):null;if(local&&(!existing||existing.deleted||existing.stopped))continue;
    local=local||crypto.randomUUID();
-   const start=existing?.starts_on||h.starts_on;
+   const start=existing?.starts_on&&existing.starts_on<h.starts_on?existing.starts_on:h.starts_on;
    const series={...existing,id:local,event_id:eventId,starts_on:start,skipped:existing?.skipped||[],task:{...existing?.task,title:h.title,description:existing?.task?.description||'',area:'Universität',type:h.type||'Hausaufgabe',course_id:id,deadline:null,estimate_minutes:h.estimate_minutes??60,priority:h.priority||'Mittel',status:'Offen',tracking:h.tracking?1:0},numbering:h.numbering,submission:h.submission};
    setting(`homework-series-${local}`,series);origin.homework_map[h.source_key]=local;
+  }
+  if(template.sheet_maximum&&Number.isFinite(template.sheet_maximum)&&template.sheet_maximum>0)setting(`course-sheet-points-${id}`,template.sheet_maximum);
+  if(template.requirements){
+   const row=db.prepare('SELECT value FROM settings WHERE key=?').get(`course-requirements-${id}`) as {value:string}|undefined;
+   const requirements=row?JSON.parse(row.value):[];
+   origin.requirement_map??={};
+   for(const r of template.requirements){
+    let local=origin.requirement_map[r.source_key];
+    const existing=requirements.find((v:any)=>v.id===local);
+    if(local&&!existing)continue;
+    local??=crypto.randomUUID();
+    const value={...existing,...generalRequirement(r),id:local,current:existing?.current??0,eventId:r.event_key?origin.event_map[r.event_key]??null:null};
+    if(existing)Object.assign(existing,value);else requirements.push(value);
+    origin.requirement_map[r.source_key]=local;
+   }
+   setting(`course-requirements-${id}`,requirements);
   }
   if(template.source_key){origin.source_key=template.source_key;origin.revision=template.revision||'';origin.snapshot=template.source_snapshot||template;setting(`course-origin-${id}`,origin);}
   return {id};
