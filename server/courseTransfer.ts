@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import {homeworkId} from '../src/homework';
 import {generalRequirement,type CourseOrigin,type CourseTemplate} from '../src/catalog';
 export function transferCourse(db:Database.Database,template:CourseTemplate,target?:number){
  return db.transaction(()=>{
@@ -55,6 +56,26 @@ export function transferCourse(db:Database.Database,template:CourseTemplate,targ
     origin.requirement_map[r.source_key]=local;
    }
    setting(`course-requirements-${id}`,requirements);
+  }
+  if(template.tasks){
+   origin.task_map??={};
+   for(const task of template.tasks){
+    if(!task.source_key||!task.title?.trim()||!task.type?.trim())throw new Error('Ungültige Aufgabenvorlage');
+    const localSeries=task.homework_key?origin.homework_map[task.homework_key]:undefined;
+    if(task.homework_key&&!localSeries)continue;
+    let taskId:number|undefined=localSeries&&task.occurrence_on?homeworkId(localSeries,task.sheet_key??task.occurrence_on):origin.task_map[task.source_key];
+    if(!taskId&&target){const found=db.prepare('SELECT id FROM tasks WHERE course_id=? AND title=? AND type=? AND deadline IS ? ORDER BY id LIMIT 1').get(id,task.title,task.type,task.deadline??null) as {id:number}|undefined;taskId=found?.id;}
+    taskId??=Math.floor(Math.random()*3500000000000000)+1;
+    // Status and completion are always personal; a new copy starts open.
+    db.prepare("INSERT INTO tasks(id,course_id,title,description,area,type,deadline,estimate_minutes,priority,status,tracking,completed_at) VALUES(?,?,?,'','Universität',?,?,?,?, 'Offen',?,NULL) ON CONFLICT(id) DO NOTHING").run(taskId,id,task.title,task.type,task.deadline??null,task.estimate_minutes??60,task.priority||'Mittel',task.tracking?1:0);
+    const existing=db.prepare('SELECT course_id FROM tasks WHERE id=?').get(taskId) as {course_id:number}|undefined;
+    if(existing?.course_id!==id)throw new Error('Aufgabe gehört zu einem anderen Kurs');
+    origin.task_map[task.source_key]=taskId;
+    if(localSeries&&task.occurrence_on){
+     const row=db.prepare('SELECT value FROM settings WHERE key=?').get(`homework-series-${localSeries}`) as {value:string}|undefined;
+     if(row){const series=JSON.parse(row.value);setting(`homework-series-${localSeries}`,{...series,imported_dates:[...new Set([...(series.imported_dates||[]),task.occurrence_on])]});}
+    }
+   }
   }
   if(template.source_key){origin.source_key=template.source_key;origin.revision=template.revision||'';origin.snapshot=template.source_snapshot||template;setting(`course-origin-${id}`,origin);}
   return {id};

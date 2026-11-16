@@ -34,7 +34,7 @@ test('Supabase schema: user isolation, cross-user relationships and atomic impor
   const shared=updated;
   await db.query('SELECT copy_course_template($1::jsonb)',[JSON.stringify(shared.payload)]);
   assert.equal((await db.query('SELECT * FROM list_course_catalog()')).rows.length,1); // Imported copies remain private.
-  assert.equal((await db.query('SELECT * FROM tasks')).rows.length,0);
+  assert.equal((await db.query('SELECT * FROM tasks')).rows.length,1);
   assert.equal((await db.query('SELECT * FROM recurring_events')).rows.length,1);
   assert.equal((await db.query("SELECT value FROM settings WHERE key LIKE 'lecture-exclusions-%'")).rows[0].value,'["2026-10-26"]');
   const copiedId=(await db.query('SELECT id FROM courses')).rows[0].id;
@@ -63,7 +63,7 @@ test('Supabase schema: user isolation, cross-user relationships and atomic impor
   assert.equal(preserved.length,1);assert.equal(preserved[0].current,9);assert.equal(preserved[0].id,requirements[0].id);
   const imported:any=(await db.query("SELECT value FROM settings WHERE key LIKE 'homework-series-%'")).rows[0];
   const routine=JSON.parse(imported.value);assert.equal(routine.task.course_id,Number(copiedId));assert.notEqual(routine.event_id,42);assert.equal(routine.task.description,'');
-  assert.equal((await db.query('SELECT * FROM tasks')).rows.length,0);
+  assert.equal((await db.query('SELECT * FROM tasks')).rows.length,1);
   assert.equal((await db.query('SELECT * FROM recurring_events')).rows.length,1);
   await assert.rejects(()=>db.query('SELECT apply_course_update($1,$2::jsonb)',[1,JSON.stringify(withRoutine)]));
   const change=structuredClone(withRoutine);change.events[0].start_time='09:30';change.homework=[];change.update_course=false;
@@ -180,5 +180,35 @@ test('Shared numbered sheets use the original actual dates and can repair a lega
    assert.equal(analysisPlan.create.find(t=>t.title===title)?.deadline,'2026-10-08T14:00');
    analysisData.tasks=analysisPlan.create;assert.deepEqual(homeworkPlan(analysisData,new Date('2026-11-16T14:28')),{create:[],remove:[],update:[]});
   }
+ }finally{await db.close()}
+});
+
+test('A brand-new cloud account receives all existing tasks immediately, all open from the first week',async()=>{
+ const {homeworkId,homeworkPlan}=await import('../src/homework');
+ const db=new PGlite();const alice='11111111-1111-4111-8111-111111111111',bob='22222222-2222-4222-8222-222222222222';
+ try{
+  await db.exec(`CREATE ROLE authenticated;CREATE SCHEMA auth;CREATE TABLE auth.users(id uuid PRIMARY KEY);CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$ SELECT nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;GRANT USAGE ON SCHEMA auth TO authenticated;INSERT INTO auth.users VALUES ('${alice}'),('${bob}');`);
+  await db.exec(await readFile('supabase/schema.sql','utf8'));await db.exec(await readFile('supabase/optional-task-time.sql','utf8'));await db.exec(await readFile('supabase/course-templates.sql','utf8'));
+  await db.exec(`SET ROLE authenticated;SELECT set_config('request.jwt.claim.sub','${alice}',false);INSERT INTO courses(id,name,code,semester,ects,hours_per_ects) VALUES(1,'Analysis','AN','WS',3,25);INSERT INTO recurring_events(id,course_id,title,weekday,start_time,end_time,starts_on,ends_on) VALUES(10,1,'UE',4,'14:00','15:00','2026-10-15','2026-12-17'),(11,1,'VO',3,'18:00','19:00','2026-10-07','2026-12-16');INSERT INTO settings(key,value) VALUES('course-catalog-visible-1','true');`);
+  const base={title:'Blatt',description:'SECRET',area:'Universität',type:'Hausaufgabe',course_id:1,deadline:null,estimate_minutes:60,priority:'Mittel',status:'Offen',tracking:1};
+  for(const series of [{id:'sheets',event_id:10,starts_on:'2026-10-15',skipped:[],numbering:{start:2,from:'2026-10-15'},task:base},{id:'review',event_id:11,starts_on:'2026-10-07',skipped:[],task:{...base,title:'Nachbereiten',type:'Nachbereitung'}}])await db.query('INSERT INTO settings(key,value) VALUES($1,$2)',['homework-series-'+series.id,JSON.stringify(series)]);
+  const tasks=[{id:21,title:'Blatt1',type:'Hausaufgabe',deadline:'2026-10-08T14:00'},{id:homeworkId('sheets','2026-10-15'),title:'Blatt 2',type:'Hausaufgabe',deadline:'2026-10-15T14:00'},{id:22,title:'Literatur lesen',type:'Lernen',deadline:'2026-10-01T12:00'},{id:23,title:'Gruppe organisieren',type:'Organisation',deadline:null},{id:24,title:'Referat vorbereiten',type:'Lernen',deadline:'2026-12-12T12:00'},{id:homeworkId('review','2026-12-16'),title:'Nachbereiten',type:'Nachbereitung',deadline:'2026-12-16T18:00'}];
+  for(const t of tasks)await db.query("INSERT INTO tasks(id,course_id,title,description,area,type,deadline,status,completed_at) VALUES($1,1,$2,'SECRET','Universität',$3,$4,'Erledigt','2026-11-15T12:00')",[t.id,t.title,t.type,t.deadline]);
+  await db.exec(`SELECT set_config('request.jwt.claim.sub','${bob}',false)`);
+  await assert.rejects(()=>db.query('SELECT catalog_course_tasks($1,1)',[alice]));
+  const template:any=(await db.query('SELECT * FROM list_course_catalog()')).rows[0].payload;
+  assert.equal(template.tasks.length,tasks.length);assert.ok(!JSON.stringify(template).includes('SECRET'));assert.ok(!JSON.stringify(template).includes('Erledigt'));assert.ok(!JSON.stringify(template).includes(alice));
+  const copy:any=(await db.query('SELECT copy_course_template($1::jsonb) AS p',[JSON.stringify(template)])).rows[0].p;
+  const rows:any[]=(await db.query('SELECT * FROM tasks WHERE course_id=$1',[copy.id])).rows;
+  assert.equal(rows.length,tasks.length);
+  for(const t of tasks){const row=rows.find(r=>r.title===t.title);assert.equal(row?.deadline,t.deadline);assert.equal(row?.status,'Offen');assert.equal(row?.completed_at,null);assert.equal(row?.description,'');}
+  const snapshot:any={courses:(await db.query('SELECT * FROM courses')).rows,tasks:rows,recurring:(await db.query('SELECT * FROM recurring_events')).rows,settings:(await db.query('SELECT * FROM settings')).rows,sessions:[],blocks:[]};
+  const plan=homeworkPlan(snapshot,new Date('2026-11-16T14:28'));
+  assert.ok(!plan.remove.some(t=>t.title==='Nachbereiten'&&t.deadline==='2026-12-16T18:00'));
+  assert.ok(!plan.create.some(t=>t.title==='Blatt1'||t.title==='Blatt 2'));
+  const own=rows.find(t=>t.title==='Literatur lesen');await db.query("UPDATE tasks SET status='Erledigt' WHERE id=$1",[own.id]);
+  await db.query('SELECT apply_course_update($1,$2::jsonb)',[copy.id,JSON.stringify(template)]);
+  assert.equal((await db.query('SELECT * FROM tasks WHERE course_id=$1',[copy.id])).rows.length,rows.length);
+  assert.equal((await db.query('SELECT status FROM tasks WHERE id=$1',[own.id])).rows[0].status,'Erledigt');
  }finally{await db.close()}
 });

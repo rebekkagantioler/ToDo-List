@@ -1,7 +1,7 @@
 import type { AppData, Task } from './types';
 import { excludedDates, unplannedDates, occurrenceDates } from './statistics';
 export type WorksheetReference={key?:string;date:string;title:string;deadline:string;visible:boolean};
-export type HomeworkSeries={id:string; event_id:number; starts_on:string; task:Omit<Task,'id'|'created_at'|'completed_at'>; skipped:string[]; reference?:WorksheetReference[]; stopped?:boolean; deleted?:boolean; numbering?:{start:number; from:string}; submission?:{days_before:number;time:string}; title_updates?:Record<string,{from:string;to:string;deadline_from?:string|null;deadline_to?:string}>};
+export type HomeworkSeries={id:string; event_id:number; starts_on:string; task:Omit<Task,'id'|'created_at'|'completed_at'>; skipped:string[]; imported_dates?:string[]; reference?:WorksheetReference[]; stopped?:boolean; deleted?:boolean; numbering?:{start:number; from:string}; submission?:{days_before:number;time:string}; title_updates?:Record<string,{from:string;to:string;deadline_from?:string|null;deadline_to?:string}>};
 export const homeworkKey=(id:string)=>`homework-series-${id}`;
 export function homeworkSeries(data:AppData):HomeworkSeries[]{return data.settings.filter(s=>s.key.startsWith('homework-series-')).flatMap(s=>{try{const v=JSON.parse(s.value);return v&&typeof v.id==='string'&&v.task&&Array.isArray(v.skipped)?[v]:[]}catch{return []}})}
 export function homeworkId(series:string,date:string){let hash=1469598103934665603n;for(const c of `${series}:${date}`)hash=BigInt.asUintN(64,(hash^BigInt(c.charCodeAt(0)))*1099511628211n);return Number(hash%4000000000000000n)+4000000000000000;}
@@ -94,7 +94,7 @@ export function homeworkPlan(data:AppData,now=new Date()){
    const id=homeworkId(series.id,date),existing=data.tasks.find(t=>t.id===id);
    const deadline=homeworkDeadline(data,series,date),release=homeworkRelease(data,series,date);
    const skipped=!allowedDates.has(date)||series.skipped.includes(date);
-   const premature=release>now&&date!==nextDate&&existing?.status==='Offen'&&!data.blocks.some(b=>b.task_id===id);
+   const premature=release>now&&date!==nextDate&&!series.imported_dates?.includes(date)&&existing?.status==='Offen'&&!data.blocks.some(b=>b.task_id===id);
    if(existing&&(skipped||series.deleted||premature)&&existing.status!=='Erledigt'&&!data.sessions.some(s=>s.task_id===id))remove.push(existing);
    const rename=series.title_updates?.[String(id)];
    if(existing&&!skipped&&!series.deleted&&existing.status!=='Erledigt'&&rename){
@@ -102,7 +102,7 @@ export function homeworkPlan(data:AppData,now=new Date()){
     const deadline=rename.deadline_to&&existing.deadline===rename.deadline_from?rename.deadline_to:existing.deadline;
     if(title!==existing.title||deadline!==existing.deadline)update.push({...existing,title,deadline});
    }
-   if(!existing&&!series.stopped&&!series.deleted&&!skipped&&(release<=now||date===nextDate))create.push({...series.task,title:homeworkTitle(data,series,date),id,deadline,created_at:now.toISOString(),completed_at:null});
+   if(!existing&&!series.stopped&&!series.deleted&&!skipped&&(release<=now||date===nextDate||series.imported_dates?.includes(date)))create.push({...series.task,title:homeworkTitle(data,series,date),id,deadline,created_at:now.toISOString(),completed_at:null});
   }
  }
  return {create,remove,update,...(reassign.length?{reassign}:{})};

@@ -68,7 +68,7 @@ GRANT EXECUTE ON FUNCTION public.course_catalog_visibility_ready() TO authentica
 -- Die frühere manuelle Vorlagentabelle wird nicht mehr direkt veröffentlicht.
 REVOKE ALL ON public.course_templates FROM authenticated;
 REVOKE ALL ON SEQUENCE public.course_templates_id_seq FROM authenticated;
-COMMENT ON FUNCTION public.list_course_catalog() IS 'Authenticated course catalog; shares numbered worksheet names and deadlines, excludes user IDs, descriptions, completion, scores, sessions, planned blocks and private settings.';
+COMMENT ON FUNCTION public.list_course_catalog() IS 'Authenticated course catalog; shares numbered worksheet names and deadlines, shares existing course task titles and deadlines; excludes user IDs, descriptions, completion, scores, sessions, planned blocks and private settings.';
 commit;
 
 -- Auswahl bei Übernahmen und bewusst bestätigte Updates bestehender Kopien.
@@ -102,6 +102,7 @@ BEGIN
  RETURN (mod(hash,4000000000000000)+4000000000000000)::bigint;
 END; $$;
 REVOKE ALL ON FUNCTION public.worksheet_task_id(text,text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.worksheet_task_id(text,text) TO authenticated;
 CREATE OR REPLACE FUNCTION public.worksheet_number(title text,prefix text) RETURNS text LANGUAGE plpgsql IMMUTABLE RETURNS NULL ON NULL INPUT SET search_path=public AS $$
 DECLARE compact text:=regexp_replace(title,'[[:space:]  ]+','','g'); base text:=regexp_replace(prefix,'[[:space:]  ]+','','g'); suffix text;
 BEGIN
@@ -173,9 +174,34 @@ BEGIN
  RETURN public.merge_catalog_homework_sheets(owner_id,series,event_id,result);
 END; $$;
 REVOKE ALL ON FUNCTION public.catalog_homework_sheets(uuid,jsonb,bigint) FROM PUBLIC;
+-- Share task structure only; source status, descriptions and results are private.
+CREATE OR REPLACE FUNCTION public.catalog_course_tasks(owner_id uuid,course_id bigint) RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path=public AS $$
+DECLARE t tasks%ROWTYPE; h jsonb; templates jsonb; sheet jsonb; occurrence text; entry jsonb; result jsonb:='[]'::jsonb;
+BEGIN
+ SELECT coalesce(jsonb_agg(jsonb_build_object('key',s.key,'obj',v.obj,'starts_on',e.starts_on,'ends_on',e.ends_on,'weekday',e.weekday,'sheets',public.catalog_homework_sheets(owner_id,v.obj,e.id)) ORDER BY s.key),'[]'::jsonb) INTO templates
+ FROM settings s CROSS JOIN LATERAL (SELECT public.catalog_object(s.value) AS obj) v JOIN recurring_events e ON e.user_id=s.user_id AND e.id::text=v.obj->>'event_id'
+ WHERE s.user_id=owner_id AND e.course_id=catalog_course_tasks.course_id AND v.obj->'task'->>'course_id'=catalog_course_tasks.course_id::text AND s.key LIKE 'homework-series-%' AND coalesce(v.obj->>'deleted','false')<>'true' AND coalesce(v.obj->>'stopped','false')<>'true';
+ FOR t IN SELECT * FROM tasks WHERE user_id=owner_id AND tasks.course_id=catalog_course_tasks.course_id AND area='Universität' ORDER BY title,type,deadline NULLS LAST,id LOOP
+ entry:=jsonb_build_object('source_key',md5(owner_id::text||':task:'||t.id),'title',t.title,'type',t.type,'deadline',t.deadline,'estimate_minutes',t.estimate_minutes,'priority',t.priority,'tracking',t.tracking);
+ FOR h IN SELECT value FROM jsonb_array_elements(templates) LOOP
+ IF h->'obj'->'task'->>'type' IS DISTINCT FROM t.type THEN CONTINUE;END IF;
+ sheet:=NULL;occurrence:=NULL;
+ SELECT r INTO sheet FROM jsonb_array_elements(CASE WHEN jsonb_typeof(h->'sheets')='array' THEN h->'sheets' ELSE '[]'::jsonb END) r WHERE r->>'title'=t.title OR public.worksheet_number(t.title,h->'obj'->'task'->>'title') IS NOT NULL AND public.worksheet_number(r->>'title',h->'obj'->'task'->>'title')=public.worksheet_number(t.title,h->'obj'->'task'->>'title') LIMIT 1;
+ IF sheet IS NOT NULL THEN
+ entry:=entry||jsonb_strip_nulls(jsonb_build_object('homework_key',md5(owner_id::text||':'||(h->>'key')),'occurrence_on',sheet->>'date','sheet_key',sheet->>'key'));EXIT;
+ END IF;
+ SELECT v::date::text INTO occurrence FROM generate_series((h->>'starts_on')::date,(h->>'ends_on')::date,interval '1 day') v WHERE extract(dow FROM v)::int=(h->>'weekday')::int AND public.worksheet_task_id(h->'obj'->>'id',v::date::text)=t.id LIMIT 1;
+ IF occurrence IS NOT NULL THEN entry:=entry||jsonb_build_object('homework_key',md5(owner_id::text||':'||(h->>'key')),'occurrence_on',occurrence);EXIT;END IF;
+ END LOOP;
+ result:=result||jsonb_build_array(entry);
+ END LOOP;
+ RETURN result;
+END; $$;
+REVOKE ALL ON FUNCTION public.catalog_course_tasks(uuid,bigint) FROM PUBLIC;
 CREATE OR REPLACE FUNCTION public.course_catalog_payload(owner_id uuid,course_id bigint) RETURNS jsonb
 LANGUAGE sql STABLE SECURITY INVOKER SET search_path=public AS $$
  SELECT jsonb_build_object(
+ 'tasks',public.catalog_course_tasks(c.user_id,c.id),
  'course',jsonb_build_object('name',c.name,'code',c.code,'semester',c.semester,'ects',c.ects,'hours_per_ects',c.hours_per_ects,'color',c.color,'description',''),
  'events',coalesce((SELECT jsonb_agg(jsonb_build_object('source_key',md5(e.user_id::text||':'||e.id),'title',e.title,'weekday',e.weekday,'start_time',e.start_time,'end_time',e.end_time,'starts_on',e.starts_on,'ends_on',e.ends_on,'auto_track',e.auto_track,'excluded',public.catalog_exclusions(s.value),'unplanned',public.catalog_exclusions(u.value)) ORDER BY e.starts_on,e.weekday,e.start_time,e.title,e.id)
  FROM recurring_events e LEFT JOIN settings s ON s.user_id=e.user_id AND s.key='lecture-exclusions-'||e.id LEFT JOIN public.settings u ON u.user_id=e.user_id AND u.key='lecture-unplanned-'||e.id WHERE e.user_id=c.user_id AND e.course_id=c.id),'[]'::jsonb),
@@ -189,10 +215,10 @@ $$;
 REVOKE ALL ON FUNCTION public.course_catalog_payload(uuid,bigint) FROM PUBLIC;
 CREATE OR REPLACE FUNCTION public.list_course_catalog() RETURNS TABLE(id text,name text,payload jsonb)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$
- SELECT DISTINCT ON (jsonb_build_object('sheet_maximum',x.base->'sheet_maximum','requirements',(SELECT coalesce(jsonb_agg(v-'source_key'-'event_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'requirements') v),'course',x.base->'course','events',(SELECT coalesce(jsonb_agg(v-'source_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'events') v),'homework',(SELECT coalesce(jsonb_agg(v-'source_key'-'event_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'homework') v))::text) x.source_key,x.name,x.base||jsonb_build_object('source_key',x.source_key,'revision',md5(x.base::text)) FROM (
+ SELECT DISTINCT ON (jsonb_build_object('tasks',(SELECT coalesce(jsonb_agg(v-'source_key'-'homework_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'tasks') v),'sheet_maximum',x.base->'sheet_maximum','requirements',(SELECT coalesce(jsonb_agg(v-'source_key'-'event_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'requirements') v),'course',x.base->'course','events',(SELECT coalesce(jsonb_agg(v-'source_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'events') v),'homework',(SELECT coalesce(jsonb_agg(v-'source_key'-'event_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'homework') v))::text) x.source_key,x.name,x.base||jsonb_build_object('source_key',x.source_key,'revision',md5(x.base::text)) FROM (
  SELECT c.name,md5(c.user_id::text||':'||c.id) AS source_key,public.course_catalog_payload(c.user_id,c.id) AS base
  FROM courses c WHERE auth.uid() IS NOT NULL AND EXISTS(SELECT 1 FROM settings s WHERE s.user_id=c.user_id AND s.key='course-catalog-visible-'||c.id AND s.value='true')
- ) x ORDER BY jsonb_build_object('sheet_maximum',x.base->'sheet_maximum','requirements',(SELECT coalesce(jsonb_agg(v-'source_key'-'event_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'requirements') v),'course',x.base->'course','events',(SELECT coalesce(jsonb_agg(v-'source_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'events') v),'homework',(SELECT coalesce(jsonb_agg(v-'source_key'-'event_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'homework') v))::text,x.source_key;
+ ) x ORDER BY jsonb_build_object('tasks',(SELECT coalesce(jsonb_agg(v-'source_key'-'homework_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'tasks') v),'sheet_maximum',x.base->'sheet_maximum','requirements',(SELECT coalesce(jsonb_agg(v-'source_key'-'event_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'requirements') v),'course',x.base->'course','events',(SELECT coalesce(jsonb_agg(v-'source_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'events') v),'homework',(SELECT coalesce(jsonb_agg(v-'source_key'-'event_key'),'[]'::jsonb) FROM jsonb_array_elements(x.base->'homework') v))::text,x.source_key;
 $$;
 CREATE OR REPLACE FUNCTION public.get_course_catalog_entry(source_key text) RETURNS jsonb
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public AS $$
@@ -203,7 +229,7 @@ REVOKE ALL ON FUNCTION public.get_course_catalog_entry(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_course_catalog_entry(text) TO authenticated;
 CREATE OR REPLACE FUNCTION public.apply_course_update(target_course bigint,template jsonb) RETURNS jsonb
 LANGUAGE plpgsql SECURITY INVOKER SET search_path=public AS $$
-DECLARE uid uuid:=auth.uid(); cid bigint:=target_course; c jsonb:=template->'course'; e jsonb; h jsonb; origin jsonb; ekey text; hid text; eid bigint; idx int:=0; previous jsonb; r jsonb; requirements jsonb; rid text; old_requirement jsonb; clean jsonb;
+DECLARE uid uuid:=auth.uid(); cid bigint:=target_course; c jsonb:=template->'course'; e jsonb; h jsonb; origin jsonb; ekey text; hid text; eid bigint; idx int:=0; previous jsonb; r jsonb; requirements jsonb; rid text; old_requirement jsonb; clean jsonb; t jsonb; tid bigint; local_series text; imported jsonb;
 BEGIN
  IF uid IS NULL THEN RAISE EXCEPTION 'Anmeldung erforderlich';END IF;
  IF coalesce(trim(c->>'name'),'')='' OR coalesce(trim(c->>'semester'),'')='' OR jsonb_typeof(template->'events') IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'Ungültige Kursvorlage'; END IF;
@@ -269,6 +295,28 @@ BEGIN
  END LOOP;
  INSERT INTO settings(key,value) VALUES('course-requirements-'||cid,requirements::text) ON CONFLICT(user_id,key) DO UPDATE SET value=excluded.value;
  END IF;
+ IF jsonb_typeof(template->'tasks')='array' THEN
+ origin:=jsonb_set(origin,'{task_map}',coalesce(origin->'task_map','{}'::jsonb));
+ FOR t IN SELECT value FROM jsonb_array_elements(template->'tasks') LOOP
+ IF coalesce(t->>'source_key','')='' OR coalesce(trim(t->>'title'),'')='' OR coalesce(trim(t->>'type'),'')='' THEN RAISE EXCEPTION 'Ungültige Aufgabenvorlage';END IF;
+ local_series:=origin->'homework_map'->>(t->>'homework_key');
+ IF t->>'homework_key' IS NOT NULL AND local_series IS NULL THEN CONTINUE;END IF;
+ tid:=NULL;
+ IF local_series IS NOT NULL AND t->>'occurrence_on' IS NOT NULL THEN tid:=public.worksheet_task_id(local_series,coalesce(t->>'sheet_key',t->>'occurrence_on'));
+ ELSE tid:=(origin->'task_map'->>(t->>'source_key'))::bigint;END IF;
+ IF tid IS NULL AND target_course IS NOT NULL THEN SELECT id INTO tid FROM tasks WHERE user_id=uid AND course_id=cid AND title=t->>'title' AND type=t->>'type' AND deadline IS NOT DISTINCT FROM t->>'deadline' ORDER BY id LIMIT 1;END IF;
+ tid:=coalesce(tid,(floor(random()*3500000000000000)+1)::bigint);
+ INSERT INTO tasks(id,course_id,title,description,area,type,deadline,estimate_minutes,priority,status,tracking,completed_at) VALUES(tid,cid,t->>'title','','Universität',t->>'type',t->>'deadline',coalesce((t->>'estimate_minutes')::int,60),coalesce(t->>'priority','Mittel'),'Offen',coalesce((t->>'tracking')::int,1),NULL) ON CONFLICT(user_id,id) DO NOTHING;
+ IF NOT EXISTS(SELECT 1 FROM tasks WHERE user_id=uid AND id=tid AND course_id=cid) THEN RAISE EXCEPTION 'Aufgabe gehört zu einem anderen Kurs';END IF;
+ origin:=jsonb_set(origin,ARRAY['task_map',t->>'source_key'],to_jsonb(tid));
+ IF local_series IS NOT NULL AND t->>'occurrence_on' IS NOT NULL THEN
+ SELECT coalesce(public.catalog_object(value)->'imported_dates','[]'::jsonb) INTO imported FROM settings WHERE user_id=uid AND key='homework-series-'||local_series;
+ imported:=coalesce(imported,'[]'::jsonb);
+ IF NOT imported ? (t->>'occurrence_on') THEN imported:=imported||jsonb_build_array(t->>'occurrence_on');END IF;
+ UPDATE settings SET value=(public.catalog_object(value)||jsonb_build_object('imported_dates',imported))::text WHERE user_id=uid AND key='homework-series-'||local_series;
+ END IF;
+ END LOOP;
+ END IF;
  IF template->>'source_key' IS NOT NULL THEN
  origin:=origin||jsonb_build_object('source_key',template->>'source_key','revision',template->>'revision','snapshot',coalesce(template->'source_snapshot',template));
  INSERT INTO settings(key,value) VALUES('course-origin-'||cid,origin::text) ON CONFLICT(user_id,key) DO UPDATE SET value=excluded.value;
@@ -278,6 +326,9 @@ END; $$;
 REVOKE ALL ON FUNCTION public.apply_course_update(bigint,jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.apply_course_update(bigint,jsonb) TO authenticated;
 CREATE OR REPLACE FUNCTION public.copy_course_template(template jsonb) RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path=public AS $$ SELECT public.apply_course_update(NULL,template) $$;
+CREATE OR REPLACE FUNCTION public.course_catalog_all_tasks_ready() RETURNS boolean LANGUAGE sql STABLE AS $$ SELECT true $$;
+REVOKE ALL ON FUNCTION public.course_catalog_all_tasks_ready() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.course_catalog_all_tasks_ready() TO authenticated;
 CREATE OR REPLACE FUNCTION public.course_catalog_sheet_names_ready() RETURNS boolean LANGUAGE sql STABLE AS $$ SELECT true $$;
 REVOKE ALL ON FUNCTION public.course_catalog_sheet_names_ready() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.course_catalog_sheet_names_ready() TO authenticated;
