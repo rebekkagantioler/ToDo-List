@@ -233,7 +233,7 @@ function CourseDetail({course,data,mutate,onBack}:{course:Course;data:AppData;mu
  const tasks=data.tasks.filter(t=>t.course_id===course.id);
  const sessions=[...data.sessions,...attendance(data)].filter(s=>sessionCourse(s,data)===course.id);
  const blocks=data.blocks.filter(b=>b.course_id===course.id||tasks.some(t=>t.id===b.task_id));
- const tabs=['Aufgaben','Anforderungen','Termine','Arbeitszeiten','Kursinfo'];
+ const tabs=['Aufgaben','Anforderungen','Termine','Aufgabenserien','Arbeitszeiten','Kursinfo'];
  return <section className="course-detail">
   <div className="page-heading"><div><button className="text-btn" onClick={onBack}>← Alle Kurse</button><h1>{course.name}</h1><p className="muted">{course.semester} · {course.ects} ECTS</p></div></div>
   <CourseUpdates course={course} data={data} mutate={mutate}/><div className="course-register">
@@ -241,7 +241,8 @@ function CourseDetail({course,data,mutate,onBack}:{course:Course;data:AppData;mu
    <div className="course-register-panel" role="tabpanel" id={`course-panel-${tabs.indexOf(section)}`} aria-labelledby={`course-tab-${tabs.indexOf(section)}`} tabIndex={0}>
     {section==='Anforderungen'&&<CourseRequirements course={course} data={data} mutate={mutate}/>}
     {section==='Aufgaben'&&<Tasks contextCourse={course} data={{...data,tasks,courses:[course]}} mutate={mutate} timer={null} setTimer={()=>{}} showTimer={false} compact/>}
-    {section==='Termine'&&<><LectureSchedule embedded course={course} data={data} mutate={mutate}/><HomeworkSchedule embedded course={course} data={data} mutate={mutate}/><CourseBlocks blocks={blocks}/></>}
+    {section==='Termine'&&<><LectureSchedule embedded course={course} data={data} mutate={mutate}/><CourseBlocks blocks={blocks}/></>}
+    {section==='Aufgabenserien'&&<HomeworkSchedule embedded course={course} data={data} mutate={mutate}/>}
     {section==='Arbeitszeiten'&&<><h2>Fortschritt & Arbeitszeiten</h2><div className="course-summary"><CourseProgress course={course} data={data}/></div><div className="session-list">{sessions.map(s=><div className="session-row" key={s.id}><div><strong>{tasks.find(t=>t.id===s.task_id)?.title||s.note||s.kind}</strong><span>{new Date(s.started_at).toLocaleString('de-DE')} · {s.kind}</span></div><b>{fmtMinutes(Math.round((new Date(s.ended_at).getTime()-new Date(s.started_at).getTime())/60000))}</b></div>)}{!sessions.length&&<p className="muted">Noch keine Arbeitszeit erfasst.</p>}</div></>}
     {section==='Kursinfo'&&<><div className="page-heading"><h2>Kursinformationen</h2><button className="secondary" onClick={()=>setEdit(true)}>Bearbeiten</button></div><dl className="course-facts"><div><dt>Semester</dt><dd>{course.semester}</dd></div><div><dt>Kürzel</dt><dd>{course.code||'–'}</dd></div><div><dt>ECTS</dt><dd>{course.ects}</dd></div><div><dt>Richtwert</dt><dd>{course.ects*course.hours_per_ects} Stunden</dd></div></dl>{course.description&&<p className="course-description">{course.description}</p>}<CourseSheetPoints key={`sheet-${course.id}-${courseSheetMaximum(data,course.id)}`} course={course} data={data} mutate={mutate}/><CourseAreaEditor course={course} data={data} mutate={mutate}/><CourseVisibility course={course} data={data} mutate={mutate}/></>}
    </div>
