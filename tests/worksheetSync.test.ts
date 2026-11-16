@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {homeworkId,homeworkKey,homeworkPlan,homeworkOwner,type HomeworkSeries} from '../src/homework';
+import {homeworkId,homeworkKey,homeworkPlan,homeworkOwner,referenceTaskId,type HomeworkSeries} from '../src/homework';
 import {catalogEntries,courseVisibilityKey} from '../src/catalog';
 import {worksheetReassignment} from '../src/worksheetReassignment';
 import type {AppData,Task} from '../src/types';
@@ -78,4 +78,19 @@ test('The sync prompt disappears after persisted sheets match and returns only f
  assert.equal(courseNeedsWorksheetSync(structuredClone(data),4,source,origin,now),false);
  source.homework[0].sheets=[...ref,{date:'2026-09-28',title:'Früheres Blatt',deadline:'2026-09-28T09:00',visible:true}];
  assert.equal(courseNeedsWorksheetSync(data,4,source,origin,now),true);
+});
+
+test('Two actual numbered sheets are both exported when their deadlines resolve to the same exercise date',()=>{
+ const data=fixture();
+ data.settings.push({key:homeworkKey(base.id),value:JSON.stringify({...base,starts_on:'2026-10-19',numbering:{start:2,from:'2026-10-19'}})});
+ data.tasks=[task(11,'Blatt 1','2026-10-13T11:08'),task(12,'Blatt 2','2026-10-19T13:45')];
+ const sheets=catalogEntries(data)[0].payload.homework![0].sheets!;
+ assert.deepEqual(sheets.filter(s=>s.visible).map(s=>s.title).sort(),['Blatt 1','Blatt 2']);
+ const friend=structuredClone(data),local={...base,starts_on:'2026-10-19',reference:sheets};
+ friend.tasks=[];friend.settings=[{key:homeworkKey(local.id),value:JSON.stringify(local)}];
+ const when=new Date('2026-10-19T09:00'),plan=homeworkPlan(friend,when);
+ assert.equal(plan.create.length,2);assert.equal(new Set(plan.create.map(t=>t.id)).size,2);
+ assert.deepEqual(plan.create.map(t=>[t.title,t.deadline]),[['Blatt 1','2026-10-13T11:08'],['Blatt 2','2026-10-19T13:45']]);
+ for(const sheet of sheets.filter(s=>s.visible))assert.equal(homeworkOwner(friend,referenceTaskId(local,sheet))?.date,sheet.date);
+ friend.tasks=plan.create;assert.deepEqual(homeworkPlan(friend,when),{create:[],remove:[],update:[]});
 });

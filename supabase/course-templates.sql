@@ -103,12 +103,13 @@ BEGIN
 END; $$;
 REVOKE ALL ON FUNCTION public.worksheet_task_id(text,text) FROM PUBLIC;
 CREATE OR REPLACE FUNCTION public.merge_catalog_homework_sheets(owner_id uuid,series jsonb,event_id bigint,sheets jsonb) RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path=public AS $$
-DECLARE e recurring_events%ROWTYPE; actual tasks%ROWTYPE; day text; candidate date; seen text[]:=ARRAY[]::text[]; result jsonb:=sheets;
+DECLARE e recurring_events%ROWTYPE; actual tasks%ROWTYPE; day text; candidate date; seen text[]:=ARRAY[]::text[]; result jsonb:=sheets; previous_key text;
 BEGIN
  SELECT * INTO e FROM recurring_events WHERE user_id=owner_id AND id=event_id;
  FOR actual IN SELECT * FROM tasks WHERE user_id=owner_id AND course_id=e.course_id AND type=series->'task'->>'type' AND left(title,length(series->'task'->>'title')+1)=(series->'task'->>'title')||' ' AND substring(title FROM length(series->'task'->>'title')+2) ~ '^[0-9]+$' AND deadline ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' ORDER BY id LOOP
  IF actual.title=ANY(seen) THEN CONTINUE;END IF;seen:=array_append(seen,actual.title);
- SELECT r->>'date' INTO day FROM jsonb_array_elements(result) r WHERE public.worksheet_task_id(series->>'id',r->>'date')=actual.id LIMIT 1;
+ SELECT r->>'key' INTO previous_key FROM jsonb_array_elements(result) r WHERE r->>'title'=actual.title LIMIT 1;
+ SELECT r->>'date' INTO day FROM jsonb_array_elements(result) r WHERE public.worksheet_task_id(series->>'id',coalesce(r->>'key',r->>'date'))=actual.id LIMIT 1;
  IF day IS NULL THEN
  SELECT v::date::text INTO day FROM generate_series(e.starts_on::date,e.ends_on::date,interval '1 day') v WHERE extract(dow FROM v)::int=e.weekday AND public.worksheet_task_id(series->>'id',v::date::text)=actual.id LIMIT 1;
  END IF;
@@ -116,10 +117,10 @@ BEGIN
  candidate:=left(actual.deadline,10)::date+coalesce((series->'submission'->>'days_before')::int,0);
  day:=(candidate+((e.weekday-extract(dow FROM candidate)::int+7)%7))::text;
  END IF;
- SELECT coalesce(jsonb_agg(r),'[]'::jsonb) INTO result FROM jsonb_array_elements(result) r WHERE r->>'title'<>actual.title AND r->>'date'<>day;
- result:=result||jsonb_build_array(jsonb_build_object('date',day,'title',actual.title,'deadline',actual.deadline,'visible',true));
+ SELECT coalesce(jsonb_agg(r),'[]'::jsonb) INTO result FROM jsonb_array_elements(result) r WHERE r->>'title'<>actual.title;
+ result:=result||jsonb_build_array(jsonb_build_object('date',day,'title',actual.title,'deadline',actual.deadline,'visible',true)||CASE WHEN previous_key IS NOT NULL THEN jsonb_build_object('key',previous_key) ELSE '{}'::jsonb END);
  END LOOP;
- RETURN (SELECT coalesce(jsonb_agg(r ORDER BY r->>'date'),'[]'::jsonb) FROM jsonb_array_elements(result) r);
+ RETURN (SELECT coalesce(jsonb_agg(r||CASE WHEN (SELECT count(*) FROM jsonb_array_elements(result) other WHERE other->>'date'=r->>'date')>1 THEN jsonb_build_object('key',coalesce(r->>'key','number:'||substring(r->>'title' FROM '[^ ]+$'))) ELSE '{}'::jsonb END ORDER BY r->>'date',r->>'title'),'[]'::jsonb) FROM jsonb_array_elements(result) r);
 END; $$;
 REVOKE ALL ON FUNCTION public.merge_catalog_homework_sheets(uuid,jsonb,bigint,jsonb) FROM PUBLIC;
 CREATE OR REPLACE FUNCTION public.catalog_homework_sheets(owner_id uuid,series jsonb,event_id bigint) RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY INVOKER SET search_path=public AS $$
@@ -128,7 +129,7 @@ BEGIN
  IF series->'numbering' IS NULL OR series->'numbering'='null'::jsonb THEN RETURN NULL;END IF;
  SELECT * INTO e FROM recurring_events WHERE user_id=owner_id AND id=event_id;
  IF jsonb_typeof(series->'reference')='array' THEN
- RETURN public.merge_catalog_homework_sheets(owner_id,series,event_id,(SELECT coalesce(jsonb_agg(jsonb_build_object('date',r->>'date','title',coalesce(t.title,r->>'title'),'deadline',coalesce(t.deadline,r->>'deadline'),'visible',t.id IS NOT NULL) ORDER BY r->>'date'),'[]'::jsonb) FROM jsonb_array_elements(series->'reference') r LEFT JOIN tasks t ON t.user_id=owner_id AND t.course_id=e.course_id AND t.id=public.worksheet_task_id(series->>'id',r->>'date')));
+ RETURN public.merge_catalog_homework_sheets(owner_id,series,event_id,(SELECT coalesce(jsonb_agg(jsonb_strip_nulls(jsonb_build_object('key',r->>'key','date',r->>'date','title',coalesce(t.title,r->>'title'),'deadline',coalesce(t.deadline,r->>'deadline'),'visible',t.id IS NOT NULL)) ORDER BY r->>'date'),'[]'::jsonb) FROM jsonb_array_elements(series->'reference') r LEFT JOIN tasks t ON t.user_id=owner_id AND t.course_id=e.course_id AND t.id=public.worksheet_task_id(series->>'id',coalesce(r->>'key',r->>'date'))));
  END IF;
  IF e.ends_on IS NULL THEN RETURN public.merge_catalog_homework_sheets(owner_id,series,event_id,'[]'::jsonb);END IF;
  SELECT public.catalog_exclusions(value) INTO exclusions FROM settings WHERE user_id=owner_id AND key='lecture-exclusions-'||event_id;
@@ -266,6 +267,9 @@ END; $$;
 REVOKE ALL ON FUNCTION public.apply_course_update(bigint,jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.apply_course_update(bigint,jsonb) TO authenticated;
 CREATE OR REPLACE FUNCTION public.copy_course_template(template jsonb) RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path=public AS $$ SELECT public.apply_course_update(NULL,template) $$;
+CREATE OR REPLACE FUNCTION public.course_catalog_sheet_keys_ready() RETURNS boolean LANGUAGE sql STABLE AS $$ SELECT true $$;
+REVOKE ALL ON FUNCTION public.course_catalog_sheet_keys_ready() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.course_catalog_sheet_keys_ready() TO authenticated;
 CREATE OR REPLACE FUNCTION public.course_catalog_history_ready() RETURNS boolean LANGUAGE sql STABLE AS $$ SELECT true $$;
 REVOKE ALL ON FUNCTION public.course_catalog_history_ready() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.course_catalog_history_ready() TO authenticated;

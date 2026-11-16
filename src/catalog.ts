@@ -1,6 +1,6 @@
 import type {AppData, Course, RecurringEvent} from './types';
 import {canceledDates, unplannedDates, occurrenceDates} from './statistics';
-import {homeworkSeries, homeworkDates, homeworkTitle, homeworkDeadline, homeworkId, type HomeworkSeries} from './homework';
+import {homeworkSeries, homeworkDates, homeworkTitle, homeworkDeadline, homeworkId, referenceTaskId, type WorksheetReference, type HomeworkSeries} from './homework';
 export type CatalogEvent=Omit<RecurringEvent,'id'|'course_id'>&{source_key?:string;excluded:string[];unplanned?:string[]};
 export type CatalogHomework={source_key:string;event_key:string;title:string;type:string;starts_on:string;estimate_minutes:number;priority:string;tracking:number;numbering?:HomeworkSeries['numbering'];submission?:HomeworkSeries['submission'];sheets?:HomeworkSeries['reference']};
 export const requirementFields=['title','unit','target','kind','dateMode','date','time','bookingDeadline','examScoreType','percentage','pointsPerSheet','maximumPoints','worksheetCount','dropLowest','attendanceRequired','taskType'] as const;
@@ -28,7 +28,7 @@ export function catalogEntries(data:AppData):CourseCatalogEntry[]{
 // recorded deadlines are authoritative even when the active series starts later.
 export function catalogWorksheetSheets(data:AppData,series:HomeworkSeries){
  const event=data.recurring.find(e=>e.id===series.event_id);
- let sheets=homeworkDates(data,series).filter(date=>!series.skipped.includes(date)).map(date=>{
+ let sheets:WorksheetReference[]=series.reference?series.reference.filter(sheet=>!series.skipped.includes(sheet.date)).map(sheet=>{const task=data.tasks.find(t=>t.id===referenceTaskId(series,sheet));return {...sheet,title:task?.title??sheet.title,deadline:task?.deadline??sheet.deadline,visible:!!task}}):homeworkDates(data,series).filter(date=>!series.skipped.includes(date)).map(date=>{
   const task=data.tasks.find(t=>t.id===homeworkId(series.id,date));
   return {date,title:task?.title??homeworkTitle(data,series,date),deadline:task?.deadline??homeworkDeadline(data,series,date),visible:!!task};
  });
@@ -38,15 +38,16 @@ export function catalogWorksheetSheets(data:AppData,series:HomeworkSeries){
  const seen=new Set<string>();
  for(const task of tasks){
   if(seen.has(task.title))continue;seen.add(task.title);
-  const owned=[...new Set([...occurrenceDates(event),...sheets.map(s=>s.date)])].find(date=>homeworkId(series.id,date)===task.id);
+  const previous=sheets.find(sheet=>sheet.title===task.title);
+  const owned=sheets.find(sheet=>referenceTaskId(series,sheet)===task.id)?.date??occurrenceDates(event).find(date=>homeworkId(series.id,date)===task.id);
   const day=new Date(`${task.deadline!.slice(0,10)}T12:00:00`);if(!Number.isFinite(day.getTime()))continue;
   day.setDate(day.getDate()+(series.submission?.days_before??0));
   day.setDate(day.getDate()+(event.weekday-day.getDay()+7)%7);
   const date=owned??`${day.getFullYear()}-${String(day.getMonth()+1).padStart(2,'0')}-${String(day.getDate()).padStart(2,'0')}`;
-  sheets=sheets.filter(s=>s.title!==task.title&&s.date!==date);
-  sheets.push({date,title:task.title,deadline:task.deadline!,visible:true});
+  sheets=sheets.filter(s=>s.title!==task.title);
+  sheets.push({...(previous?.key?{key:previous.key}:{}),date,title:task.title,deadline:task.deadline!,visible:true});
  }
- return sheets.sort((a,b)=>a.date.localeCompare(b.date));
+ return sheets.map(sheet=>sheets.filter(other=>other.date===sheet.date).length>1?{...sheet,key:sheet.key??`number:${sheet.title.slice(sheet.title.lastIndexOf(' ')+1)}`} :sheet).sort((a,b)=>a.date.localeCompare(b.date)||a.title.localeCompare(b.title,undefined,{numeric:true}));
 }
 export function selectCourseContents(template:CourseTemplate,eventKeys:string[],homeworkKeys:string[],_startsOn?:string):CourseTemplate{
  return {...template,source_snapshot:template,events:template.events.filter(e=>eventKeys.includes(e.source_key||'')),homework:(template.homework||[]).filter(h=>homeworkKeys.includes(h.source_key)&&eventKeys.includes(h.event_key))};

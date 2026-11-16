@@ -150,5 +150,19 @@ test('Shared numbered sheets use the original actual dates and can repair a lega
   const synced=homeworkPlan(friend,new Date('2026-11-16T14:28'));
   assert.deepEqual(synced.create.map(t=>[t.title,t.deadline]),roster.map(r=>[r.title,r.deadline]));
   friend.tasks=synced.create;assert.deepEqual(homeworkPlan(friend,new Date('2026-11-16T14:28')),{create:[],remove:[],update:[]});
+
+  // Distinct sheet numbers must survive even when deadline-based inference
+  // associates their historical tasks with the same exercise occurrence.
+  await db.exec(`SELECT set_config('request.jwt.claim.sub','${alice}',false);UPDATE tasks SET deadline='2026-10-13T11:08' WHERE id=11;SELECT set_config('request.jwt.claim.sub','${bob}',false)`);
+  const overlapping:any=(await db.query('SELECT get_course_catalog_entry($1) AS p',[payload.source_key])).rows[0].p;
+  const firstTwo=overlapping.homework[0].sheets.filter((r:any)=>r.title==='Blatt 1'||r.title==='Blatt 2');
+  assert.equal(firstTwo.length,2);assert.equal(firstTwo[0].date,firstTwo[1].date);assert.notEqual(firstTwo[0].key,firstTwo[1].key);
+  await db.query('SELECT apply_course_update(40,$1::jsonb)',[JSON.stringify(overlapping)]);
+  const collisionSeries=JSON.parse((await db.query("SELECT value FROM settings WHERE key='homework-series-legacy'")).rows[0].value as string);
+  const collisionData:any={...friend,tasks:[],settings:[{key:homeworkKey('legacy'),value:JSON.stringify(collisionSeries)}]};
+  const collisionPlan=homeworkPlan(collisionData,new Date('2026-11-16T14:28'));
+  assert.equal(collisionPlan.create.length,5);assert.equal(new Set(collisionPlan.create.map(t=>t.id)).size,5);
+  assert.deepEqual(collisionPlan.create.filter(t=>t.title==='Blatt 1'||t.title==='Blatt 2').map(t=>[t.title,t.deadline]),[['Blatt 1','2026-10-13T11:08'],['Blatt 2','2026-10-19T13:45']]);
+  collisionData.tasks=collisionPlan.create;assert.deepEqual(homeworkPlan(collisionData,new Date('2026-11-16T14:28')),{create:[],remove:[],update:[]});
  }finally{await db.close()}
 });
