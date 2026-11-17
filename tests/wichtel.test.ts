@@ -3,15 +3,18 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';
 import {PGlite} from '@electric-sql/pglite';
-import {wichtelNames,wichtelInputError,wichtelLink,wichtelToken,validWichtelToken} from '../src/wichtel';
+import {wichtelNames,wichtelInputError,wichtelLink,wichtelToken,validWichtelToken,engilaRoundTitle} from '../src/wichtel';
 
 test('Wichtel input and links retain the Pages path, hide tokens in the fragment and reject ambiguous participants',()=>{
  assert.deepEqual(wichtelNames(' Anna \r\n\nBen\n Clara '),['Anna','Ben','Clara']);
  assert.ok(wichtelInputError('Weihnachten',['Anna']));assert.ok(wichtelInputError('Weihnachten',['Anna','anna']));
  assert.equal(wichtelInputError('Weihnachten',['Anna M.','Anna S.']),'');
  const token='ab'.repeat(32),url=wichtelLink(token,'https://example.test/ToDo-List/?old=value#old');
- assert.equal(url,`https://example.test/ToDo-List/#wichteln=${token}`);
- assert.equal(wichtelToken(new URL(url).hash),token);assert.equal(wichtelToken('#other'),null);assert.equal(wichtelToken('#wichteln='),'');
+ assert.equal(url,`https://example.test/ToDo-List/#engila=${token}`);
+ assert.equal(wichtelToken(new URL(url).hash),token);assert.equal(wichtelToken('#wichteln='+token),token);assert.equal(wichtelToken('#other'),null);assert.equal(wichtelToken('#wichteln='),'');
+ assert.equal(wichtelToken('#engila='),'');
+ assert.deepEqual(wichtelNames(['Anna','Ben'].join(String.fromCharCode(13,10))),['Anna','Ben']);
+ assert.equal(engilaRoundTitle('Weihnachtswichteln 2026'),'Engila Bengila 2026');assert.equal(engilaRoundTitle('Familie'),'Familie');
  assert.equal(validWichtelToken('abc'),false);assert.throws(()=>wichtelLink('abc','https://example.test/'));
 });
 
@@ -35,7 +38,7 @@ test('Only the pinned owner can manage draws; anonymous links reveal one fixed o
   for(const names of [[],['Anna'],['Anna','anna'],['Anna',null],['Anna',' '],Array(101).fill('X')])await assert.rejects(()=>db.query('SELECT wichtel_draw($1,$2,$3)',[randomUUID(),'Weihnachten',names]));
   const ids:string[]=[];const allTokens:string[]=[];
   for(const n of [2,3,10,100]){
-   const id=randomUUID(),names=Array.from({length:n},(_,i)=>`Person ${i+1}`);ids.push(id);
+   const id=randomUUID(),names=n===3?['Rebekka','Anna','Ben']:Array.from({length:n},(_,i)=>`Person ${i+1}`);ids.push(id);
    await db.query('SELECT wichtel_draw($1,$2,$3)',[id,'Weihnachten',names]);
    const list:any=(await db.query('SELECT wichtel_list() AS rounds')).rows[0].rounds;
    const round=list.find((r:any)=>r.id===id);assert.equal(round.people.length,n);
@@ -43,6 +46,7 @@ test('Only the pinned owner can manage draws; anonymous links reveal one fixed o
    const recipients:string[]=[],tokens=round.people.map((p:any)=>p.token);allTokens.push(...tokens);
    assert.equal(new Set(tokens).size,n);assert.ok(tokens.every(validWichtelToken));
    for(const person of round.people){
+    assert.deepEqual(Object.keys(person).sort(),['id','name','token']);
     assert.equal(person.recipient,undefined);assert.equal(person.recipient_id,undefined);
     const result:any=(await db.query('SELECT wichtel_reveal($1) AS result',[person.token])).rows[0].result;
     assert.deepEqual(Object.keys(result).sort(),['giver','recipient','title']);
