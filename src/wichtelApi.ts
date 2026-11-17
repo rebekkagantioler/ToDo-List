@@ -1,0 +1,8 @@
+import {cloud} from './cloud';
+import {validWichtelToken,type WichtelRound,type WichtelResult} from './wichtel';
+function requireCloud(){if(!cloud)throw new Error('Wichteln benötigt die Cloud-Verbindung, damit die Links auch auf anderen Geräten funktionieren.');return cloud}
+function adminError(error:{code?:string;message:string}){return new Error(error.code==='PGRST202'?'Bitte die Datei supabase/wichteln.sql einmal im Supabase SQL Editor ausführen.':error.message)}
+export async function listWichtelRounds():Promise<WichtelRound[]>{const r=await requireCloud().rpc('wichtel_list').abortSignal(AbortSignal.timeout(30000));if(r.error)throw adminError(r.error);return r.data??[]}
+export async function drawWichtel(id:string,title:string,names:string[]){const r=await requireCloud().rpc('wichtel_draw',{request_id:id,round_title:title,participant_names:names}).abortSignal(AbortSignal.timeout(30000));if(r.error)throw adminError(r.error);return r.data as string}
+export async function deleteWichtelRound(id:string){const r=await requireCloud().rpc('wichtel_delete',{round_id:id}).abortSignal(AbortSignal.timeout(30000));if(r.error)throw adminError(r.error);return r.data as boolean}
+export async function revealWichtel(token:string):Promise<WichtelResult|null>{if(!validWichtelToken(token))return null;if(!cloud)throw new Error('Dein Los ist gerade nicht erreichbar. Bitte frag die Person, die dir den Link geschickt hat.');const r=await cloud.rpc('wichtel_reveal',{secret_token:token}).abortSignal(AbortSignal.timeout(30000));if(r.error?.code==='PGRST202')return null;if(r.error)throw new Error('Dein Los konnte gerade nicht geladen werden. Bitte versuche es noch einmal.');return r.data}

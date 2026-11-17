@@ -136,3 +136,13 @@ Die Kurskarten unter **Kurse** lassen sich am Griff mit Maus oder Finger auf ein
 Auf dem Handy ist die Zeiterfassung scrollbar: Kursauswahl, Timer und große Bedienelemente stehen zuerst, gefolgt vom Tagesspruch und den letzten Sitzungen. Die Uhr wird nicht mehr verkleinert, um alle Inhalte gleichzeitig in eine Bildschirmhöhe zu pressen. Die Kurskarten haben nur einen Ziehgriff, keine sichtbaren Pfeiltasten.
 
 Unter Leistungen erscheinen alle vorhandenen verknüpften Blätter, auch offene und nachträglich übernommene. Punkte können direkt beim jeweiligen Blatt eingetragen werden und zählen unabhängig vom Aufgaben-Häkchen; Teilnahme- und Streichregeln gelten weiterhin. Die Bearbeitungsanzeige zählt separat die abgehakten Aufgaben. Nach einem Blätter-Abgleich verwendet die Liste die aktuellen Blattnamen und Termine; verwaiste Punkteverknüpfungen erzeugen keine zusätzlichen Blattzeilen.
+
+## Vorübergehendes Weihnachtswichteln
+
+Die eigenständige Einrichtung liegt in `supabase/wichteln.sql`. Einmal im Supabase SQL Editor ausführen. Das bestehende, konfigurierte Konto **Rebekka** ist fest als Verwaltungskonto zugeordnet; Profilnamen oder die Registrierung eines anderen Kontos vergeben keine Rechte. Nur dieses Konto sieht den Menüpunkt „Wichteln“ und kann Runden anlegen, persönliche Links auflisten und Runden löschen.
+
+Pro Zeile wird eine Person eingetragen, mindestens zwei, maximal 100. „Auslosen & Links erstellen“ erzeugt eine feste zufällige Zuordnung: Jede Person beschenkt genau eine andere Person, niemand sich selbst. Jede Person erhält genau ein Geschenk. Wiederholte Anfragen nach einem Verbindungsfehler ändern die Auslosung nicht. Gleiche Vornamen brauchen eindeutige Zusätze.
+
+Links werden einzeln kopiert und selbst weitergeschickt; die App versendet keine Nachrichten. Empfänger brauchen kein Konto. Ihr Link führt auf eine eigene Geschenkseite und zeigt nach „Mein Los öffnen“ nur ihren Namen und die beschenkte Person. Der geheime Link steckt im URL-Fragment; die Datenbanktabellen und Verwaltungsfunktionen sind für andere Konten und anonyme Besucher gesperrt. Der persönliche Link berechtigt zum Lesen dieses einen Loses und sollte nur der zugehörigen Person geschickt werden.
+
+Eine Runde kann nach Bestätigung gelöscht werden; ihre Links werden sofort ungültig. Für das spätere vollständige Entfernen der Wichteldaten und Datenbankfunktionen gibt es `supabase/wichteln-entfernen.sql`. Die übrigen Planraum-Tabellen werden dabei nicht verändert. Die Wichtelfunktionen sind in eigenen Dateien gekapselt und können danach samt Menüeintrag wieder aus der App entfernt werden.
