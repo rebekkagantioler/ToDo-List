@@ -57,6 +57,7 @@ test('Only the pinned owner can manage draws; anonymous links reveal one fixed o
    const opened:any=(await db.query('SELECT wichtel_list() AS rounds')).rows[0].rounds.find((r:any)=>r.id===id);
    assert.ok(opened.people.every((p:any)=>typeof p.revealed_at==='string'));
    assert.equal(new Set(recipients).size,n);
+   if(n>2){const mappings=[...results.values()] as any[];assert.ok(mappings.every(result=>mappings.find(other=>other.giver===result.recipient)?.recipient!==result.giver));}
    await db.query('SELECT wichtel_draw($1,$2,$3)',[id,'Weihnachten',names]);
    const retry:any=(await db.query('SELECT wichtel_list() AS rounds')).rows[0].rounds;
    assert.deepEqual(retry.find((r:any)=>r.id===id),opened);
@@ -76,6 +77,16 @@ test('Only the pinned owner can manage draws; anonymous links reveal one fixed o
   const modern:any=(await db.query('SELECT wichtel_list() AS rounds')).rows[0].rounds.find((r:any)=>r.id===modernId);
   const modernRecipients=(await Promise.all(modern.people.map(async(person:any)=>(await db.query('SELECT wichtel_reveal($1) AS result',[person.token])).rows[0].result.recipient)));
   assert.equal(new Set(modernRecipients).size,modernNames.length);assert.ok(modernRecipients.every((recipient:string,index:number)=>recipient!==modern.people[index].name));
+  const modernPairs=modern.people.map((person:any,index:number)=>({giver:person.name,recipient:modernRecipients[index]}));
+  assert.ok(modernPairs.every(pair=>modernPairs.find(other=>other.giver===pair.recipient)?.recipient!==pair.giver));
+  await db.exec('RESET ROLE');await db.exec(await readFile('supabase/wichteln-ohne-paare.sql','utf8'));
+  await db.exec(`SET ROLE authenticated;SELECT set_config('request.jwt.claim.sub','${owner}',false)`);
+  const noPairId=randomUUID(),noPairNames=['Evi','Feli','Gabi','Hedi','Iris','Jana'];
+  await db.query('SELECT wichtel_draw($1,$2,$3)',[noPairId,'Ohne Paare',noPairNames]);
+  const noPair:any=(await db.query('SELECT wichtel_list() AS rounds')).rows[0].rounds.find((r:any)=>r.id===noPairId);
+  const noPairRecipients=await Promise.all(noPair.people.map(async(person:any)=>(await db.query('SELECT wichtel_reveal($1) AS result',[person.token])).rows[0].result.recipient));
+  const noPairMappings=noPair.people.map((person:any,index:number)=>({giver:person.name,recipient:noPairRecipients[index]}));
+  assert.ok(noPairMappings.every(pair=>noPairMappings.find(other=>other.giver===pair.recipient)?.recipient!==pair.giver));
   // Reinstalling the temporary feature never re-draws existing rounds.
   await db.exec('RESET ROLE');await db.exec(sql);
   await db.exec(`SET ROLE anon;SELECT set_config('request.jwt.claim.sub','',false)`);

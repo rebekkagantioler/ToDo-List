@@ -79,10 +79,11 @@ BEGIN
  END IF;
  n:=cardinality(names);
  SELECT array_agg(gen_random_uuid() ORDER BY ord) INTO ids FROM generate_series(1,n) ord;
- -- Draw a uniformly random derangement: no fixed point, but no forced single circle either.
+ -- Draw a random derangement. With 3+ people, reciprocal two-person pairs are excluded too.
  LOOP
   SELECT array_agg(person ORDER BY random()) INTO shuffled FROM unnest(ids) person;
-  EXIT WHEN NOT EXISTS(SELECT 1 FROM generate_subscripts(ids,1) AS s(i) WHERE ids[s.i]=shuffled[s.i]);
+  EXIT WHEN NOT EXISTS(SELECT 1 FROM generate_subscripts(ids,1) AS s(i) WHERE ids[s.i]=shuffled[s.i])
+   AND (n=2 OR NOT EXISTS(SELECT 1 FROM generate_subscripts(ids,1) AS s(i) WHERE shuffled[array_position(ids,shuffled[s.i])]=ids[s.i]));
  END LOOP;
  INSERT INTO public.wichtel_rounds(id,owner_id,title) VALUES(request_id,auth.uid(),btrim(round_title));
  FOR i IN 1..n LOOP
