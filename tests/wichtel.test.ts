@@ -69,6 +69,13 @@ test('Only the pinned owner can manage draws; anonymous links reveal one fixed o
   await db.exec(`SET ROLE authenticated;SELECT set_config('request.jwt.claim.sub','${owner}',false)`);
   const upgraded:any=(await db.query('SELECT wichtel_list() AS rounds')).rows[0].rounds;
   assert.ok(upgraded.every((round:any)=>round.people.every((person:any)=>typeof person.revealed_at==='string')));
+  await db.exec('RESET ROLE');await db.exec(await readFile('supabase/wichteln-zufall.sql','utf8'));
+  await db.exec(`SET ROLE authenticated;SELECT set_config('request.jwt.claim.sub','${owner}',false)`);
+  const modernId=randomUUID(),modernNames=['Ada','Bela','Cora','Dani'];
+  await db.query('SELECT wichtel_draw($1,$2,$3)',[modernId,'Neu',modernNames]);
+  const modern:any=(await db.query('SELECT wichtel_list() AS rounds')).rows[0].rounds.find((r:any)=>r.id===modernId);
+  const modernRecipients=(await Promise.all(modern.people.map(async(person:any)=>(await db.query('SELECT wichtel_reveal($1) AS result',[person.token])).rows[0].result.recipient)));
+  assert.equal(new Set(modernRecipients).size,modernNames.length);assert.ok(modernRecipients.every((recipient:string,index:number)=>recipient!==modern.people[index].name));
   // Reinstalling the temporary feature never re-draws existing rounds.
   await db.exec('RESET ROLE');await db.exec(sql);
   await db.exec(`SET ROLE anon;SELECT set_config('request.jwt.claim.sub','',false)`);

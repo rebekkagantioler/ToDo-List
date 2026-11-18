@@ -61,7 +61,7 @@ GRANT EXECUTE ON FUNCTION public.wichtel_list() TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.wichtel_draw(request_id uuid,round_title text,participant_names text[]) RETURNS uuid
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
-DECLARE names text[]; ids uuid[]; shuffled uuid[]; n integer; i integer; slot integer; existing public.wichtel_rounds%ROWTYPE; previous_names text[];
+DECLARE names text[]; ids uuid[]; shuffled uuid[]; n integer; i integer; existing public.wichtel_rounds%ROWTYPE; previous_names text[];
 BEGIN
  IF NOT public.wichtel_is_admin() THEN RAISE EXCEPTION 'Keine Berechtigung';END IF;
  IF request_id IS NULL OR round_title IS NULL OR length(btrim(round_title)) NOT BETWEEN 1 AND 120 THEN RAISE EXCEPTION 'Bitte einen Titel mit höchstens 120 Zeichen eingeben.';END IF;
@@ -79,12 +79,14 @@ BEGIN
  END IF;
  n:=cardinality(names);
  SELECT array_agg(gen_random_uuid() ORDER BY ord) INTO ids FROM generate_series(1,n) ord;
- SELECT array_agg(person ORDER BY random()) INTO shuffled FROM unnest(ids) person;
+ -- Draw a uniformly random derangement: no fixed point, but no forced single circle either.
+ LOOP
+  SELECT array_agg(person ORDER BY random()) INTO shuffled FROM unnest(ids) person;
+  EXIT WHEN NOT EXISTS(SELECT 1 FROM generate_subscripts(ids,1) AS s(i) WHERE ids[s.i]=shuffled[s.i]);
+ END LOOP;
  INSERT INTO public.wichtel_rounds(id,owner_id,title) VALUES(request_id,auth.uid(),btrim(round_title));
- -- A randomly shuffled ring gives each person exactly one other person.
  FOR i IN 1..n LOOP
-  slot:=array_position(shuffled,ids[i]);
-  INSERT INTO public.wichtel_people(id,round_id,position,name,recipient_id) VALUES(ids[i],request_id,i,names[i],shuffled[(slot%n)+1]);
+  INSERT INTO public.wichtel_people(id,round_id,position,name,recipient_id) VALUES(ids[i],request_id,i,names[i],shuffled[i]);
  END LOOP;
  RETURN request_id;
 END; $$;
