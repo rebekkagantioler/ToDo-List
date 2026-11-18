@@ -37,7 +37,7 @@ import type { AppData, Block, Course, Session, Task } from './types';
 declare const __APP_BUILD__: string;
 
 type View = 'wichtel'|'performances'|'attendance'|'inbox'|'dashboard'|'tasks'|'calendar'|'courses'|'private'|'time'|'stats'|'settings';
-const taskTypes=['Einkaufen','Sport','Termin','Hausaufgabe','Nachbereitung','Vorbereitung','Prüfungsvorbereitung','Lernen','Projekt','Haushalt','Sonstiges'];
+const taskTypes=['Einkaufen','Sport','Termin','Hausaufgabe','Peerfeedback','Reflexion','Nachbereitung','Vorbereitung','Prüfungsvorbereitung','Lernen','Projekt','Haushalt','Sonstiges'];
 const localDate=(d:Date)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 const todayKey=()=>localDate(new Date());
 const toLocalInput=(s:string)=>{const d=new Date(s);return `${localDate(d)}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`};

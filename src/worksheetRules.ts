@@ -29,13 +29,18 @@ export function worksheetAttendance(data:AppData,r:CourseRequirement,e:Performan
 export function assessWorksheets(data:AppData,r:CourseRequirement,entries:PerformanceEntry[]){
  const rows=entries.map(entry=>{
   const attendance=worksheetAttendance(data,r,entry);
-  return {entry,attendance,effectiveAmount:attendance==='yes'||attendance==='canceled'?entry.amount:0};
+  return {entry,attendance,effectiveAmount:attendance==='no'||attendance==='unplanned'?0:entry.amount};
  });
- const eligible=rows.filter(x=>x.attendance==='yes'||x.attendance==='no'||x.attendance==='canceled');
- const lowest=[...eligible].sort((a,b)=>a.effectiveAmount-b.effectiveAmount||(a.attendance==='no'?-1:0)-(b.attendance==='no'?-1:0)||a.entry.source.localeCompare(b.entry.source)).slice(0,r.worksheetFinalized?r.dropLowest||0:0);
+ const eligible=rows.filter(x=>x.attendance!=='unplanned');
+ const candidates=eligible.filter(x=>r.worksheetFinalized||x.attendance==='no');
+ const lowest=candidates.sort((a,b)=>
+  Number(b.attendance==='no')-Number(a.attendance==='no')
+  ||a.effectiveAmount-b.effectiveAmount
+  ||a.entry.source.localeCompare(b.entry.source)
+ ).slice(0,r.dropLowest||0);
  const dropped=new Set(lowest.map(x=>x.entry.source));
  const finalMaximum=worksheetMaximum(data,r),pendingFinalization=(r.dropLowest||0)>0&&!r.worksheetFinalized;
  const maximum=finalMaximum;
- const canFinalize=!!r.worksheetCount&&eligible.length===r.worksheetCount&&rows.every(x=>x.attendance==='yes'||x.attendance==='no'||x.attendance==='canceled')&&r.current===0;
+ const canFinalize=!!r.worksheetCount&&eligible.length===r.worksheetCount&&rows.every(x=>x.attendance!==null&&x.attendance!=='unplanned')&&r.current===0;
  return {rows,dropped,credited:eligible.filter(x=>!dropped.has(x.entry.source)).map(x=>({...x.entry,amount:x.effectiveAmount})),maximum,finalMaximum,pendingFinalization,canFinalize};
 }

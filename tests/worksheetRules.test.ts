@@ -35,9 +35,19 @@ test('correcting attendance restores the original points and recalculates the dr
  const data=fixture();attendance(data,1,'no');attendance(data,2,'no');attendance(data,3,'no');assert.equal(requirementProgress(data,r).amount,44);
  attendance(data,3,'yes');assert.equal(requirementProgress(data,r).amount,48);assert.equal(JSON.parse(data.settings.find(s=>s.key===entryKey(r.id,'manual-3'))!.value).amount,4);
 });
-test('unconfirmed attendance remains open while canceled lessons still credit the sheet points',()=>{
- const data=fixture();attendance(data,1,'');data.settings.push({key:exclusionKey(1),value:'["2026-11-02"]'});const p=requirementProgress(data,r);
- assert.equal(p.worksheet!.rows.find(x=>x.entry.source==='manual-1')!.attendance,null);assert.equal(p.worksheet!.rows.find(x=>x.entry.source==='manual-2')!.attendance,'canceled');assert.ok(!p.worksheet!.dropped.has('manual-1'));assert.ok(!p.worksheet!.dropped.has('manual-2'));assert.equal(p.amount,44);
+test('recorded points count while attendance is open or the lesson is canceled',()=>{
+ const data=fixture(),running={...r,worksheetFinalized:false};
+ attendance(data,1,'');data.settings.push({key:exclusionKey(1),value:'["2026-11-02"]'});
+ const p=requirementProgress(data,running);
+ assert.equal(p.amount,56);assert.equal(p.worksheet!.canFinalize,false);
+ assert.equal(p.worksheet!.rows.find(x=>x.entry.source==='manual-1')!.attendance,null);
+ assert.equal(p.worksheet!.rows.find(x=>x.entry.source==='manual-2')!.attendance,'canceled');
+ attendance(data,1,'no');
+ assert.equal(requirementProgress(data,running).amount,52);
+ assert.deepEqual([...requirementProgress(data,running).worksheet!.dropped],['manual-1']);
+ attendance(data,1,'yes');
+ assert.equal(requirementProgress(data,running).amount,56);
+ assert.equal(requirementProgress(data,running).worksheet!.dropped.size,0);
 });
 test('an absent linked task appears as a zero sheet even without a saved result or completion',()=>{
  const data=fixture();data.settings=data.settings.filter(s=>!s.key.startsWith('performance-entry-'));data.tasks=[{id:3,course_id:1,type:'Hausaufgabe',title:'Blatt 3',status:'Offen',deadline:'2026-11-03'} as Task];attendance(data,3,'no');
@@ -91,11 +101,15 @@ test('the final two discards apply only after explicit closure, even if all four
  const after=requirementProgress(data,{...running,worksheetFinalized:true});assert.equal(after.amount,48);assert.equal(after.possible,48);assert.equal(after.worksheet!.dropped.size,2);assert.equal(after.fulfilled,true);
  assert.equal(worksheetProgress(data,1,running).minimum,24);assert.equal(worksheetCompletion(data,running).total,14);
 });
-test('absence zeros are kept during the semester, and reopening restores the untrimmed score',()=>{
- const data=fixture();attendance(data,3,'no');const running={...r,worksheetFinalized:false};data.settings[0].value=JSON.stringify([running]);
- assert.equal(requirementProgress(data,running).amount,52);assert.equal(requirementProgress(data,running).worksheet!.dropped.size,0);
- const closed={...running,worksheetFinalized:true};assert.equal(requirementProgress(data,closed).amount,48);assert.equal(requirementProgress(data,closed).worksheet!.dropped.size,2);
- assert.equal(requirementProgress(data,running).amount,52);
+test('two recorded absences use both drop slots before and after finalization',()=>{
+ const data=fixture(),running={...r,worksheetFinalized:false};
+ attendance(data,3,'no');attendance(data,7,'no');
+ const before=requirementProgress(data,running);
+ const after=requirementProgress(data,{...running,worksheetFinalized:true});
+ for(const p of [before,after]){
+  assert.equal(p.amount,48);
+  assert.deepEqual([...p.worksheet!.dropped],['manual-3','manual-7']);
+ }
 });
 
 test('the bar maximum stays at 48 throughout the semester while no worksheet scores are removed early',()=>{
