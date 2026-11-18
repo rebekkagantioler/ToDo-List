@@ -5,7 +5,7 @@ export const validWichtelToken=(token:string)=>/^[a-f0-9]{64}$/.test(token);
 export function wichtelToken(hash:string):string|null{return new URLSearchParams(hash.replace(/^#/,'')).get('engila')??new URLSearchParams(hash.replace(/^#/, '')).get('wichteln')}
 export function wichtelLink(token:string,base:string){
  if(!validWichtelToken(token))throw new Error('Ungültiger persönlicher Link.');
- const url=new URL(base);url.search='';url.hash=`engila=${token}`;return url.toString();
+ const url=new URL(base);url.search='';url.hash='';url.pathname=(url.pathname.endsWith('/')?url.pathname:url.pathname+'/')+'engila.html';url.hash=`engila=${token}`;return url.toString();
 }
 export function wichtelNames(text:string){return text.split(/\r?\n/).map(name=>name.trim().normalize('NFC')).filter(Boolean)}
 export function wichtelInputError(title:string,names:string[]){

@@ -29,5 +29,5 @@ test('the organizer can copy a link for each person without rendering or automat
  let copied=false;
  const html=renderToStaticMarkup(createElement(WichtelRoundLinks,{round,base:'https://example.test/ToDo-List/',copied:'',onCopy:()=>{copied=true}}));
  assert.match(html,/Rebekka/);assert.match(html,/Anna/);assert.equal((html.match(/Link kopieren<\/span>/g)||[]).length,2);
- assert.match(html,/Angesehen/);assert.match(html,/Noch nicht geöffnet/);assert.doesNotMatch(html,/SECRET_RECIPIENT|<a\s|Mein Los öffnen/);assert.match(html,/#engila=/);assert.equal(copied,false);
+ assert.match(html,/Angesehen/);assert.match(html,/Noch nicht geöffnet/);assert.doesNotMatch(html,/SECRET_RECIPIENT|<a\s|Mein Los öffnen/);assert.match(html,/engila\.html#engila=/);assert.equal(copied,false);
 });

@@ -10,12 +10,17 @@ test('Wichtel input and links retain the Pages path, hide tokens in the fragment
  assert.ok(wichtelInputError('Weihnachten',['Anna']));assert.ok(wichtelInputError('Weihnachten',['Anna','anna']));
  assert.equal(wichtelInputError('Weihnachten',['Anna M.','Anna S.']),'');
  const token='ab'.repeat(32),url=wichtelLink(token,'https://example.test/ToDo-List/?old=value#old');
- assert.equal(url,`https://example.test/ToDo-List/#engila=${token}`);
+ assert.equal(url,`https://example.test/ToDo-List/engila.html#engila=${token}`);
  assert.equal(wichtelToken(new URL(url).hash),token);assert.equal(wichtelToken('#wichteln='+token),token);assert.equal(wichtelToken('#other'),null);assert.equal(wichtelToken('#wichteln='),'');
  assert.equal(wichtelToken('#engila='),'');
  assert.deepEqual(wichtelNames(['Anna','Ben'].join(String.fromCharCode(13,10))),['Anna','Ben']);
  assert.equal(engilaRoundTitle('Weihnachtswichteln 2026'),'Engila Bengila 2026');assert.equal(engilaRoundTitle('Familie'),'Familie');
  assert.equal(validWichtelToken('abc'),false);assert.throws(()=>wichtelLink('abc','https://example.test/'));
+});
+
+test('Engila links use a separate static social preview without exposing the secret token',async()=>{
+ const preview=await readFile('public/engila.html','utf8');
+ assert.match(preview,/og:title" content="Engila Bengila – dein geheimes Los"/);assert.match(preview,/og:image/);assert.match(preview,/app\.hash = window\.location\.hash/);assert.doesNotMatch(preview,/Planraum/);
 });
 
 test('Only the pinned owner can manage draws; anonymous links reveal one fixed other person, retries are stable and deletion revokes links',async()=>{
