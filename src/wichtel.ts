@@ -1,4 +1,4 @@
-export type WichtelPerson={id:string;name:string;token:string};
+export type WichtelPerson={id:string;name:string;token:string;revealed_at:string|null};
 export type WichtelRound={id:string;title:string;created_at:string;people:WichtelPerson[]};
 export type WichtelResult={title:string;giver:string;recipient:string};
 export const validWichtelToken=(token:string)=>/^[a-f0-9]{64}$/.test(token);

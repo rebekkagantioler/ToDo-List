@@ -46,21 +46,29 @@ test('Only the pinned owner can manage draws; anonymous links reveal one fixed o
    const recipients:string[]=[],tokens=round.people.map((p:any)=>p.token);allTokens.push(...tokens);
    assert.equal(new Set(tokens).size,n);assert.ok(tokens.every(validWichtelToken));
    for(const person of round.people){
-    assert.deepEqual(Object.keys(person).sort(),['id','name','token']);
+    assert.deepEqual(Object.keys(person).sort(),['id','name','revealed_at','token']);
+    assert.equal(person.revealed_at,null);
     assert.equal(person.recipient,undefined);assert.equal(person.recipient_id,undefined);
     const result:any=(await db.query('SELECT wichtel_reveal($1) AS result',[person.token])).rows[0].result;
     assert.deepEqual(Object.keys(result).sort(),['giver','recipient','title']);
     results.set(person.token,result);
     assert.equal(result.giver,person.name);assert.notEqual(result.recipient,person.name);assert.ok(names.includes(result.recipient));recipients.push(result.recipient);
    }
+   const opened:any=(await db.query('SELECT wichtel_list() AS rounds')).rows[0].rounds.find((r:any)=>r.id===id);
+   assert.ok(opened.people.every((p:any)=>typeof p.revealed_at==='string'));
    assert.equal(new Set(recipients).size,n);
    await db.query('SELECT wichtel_draw($1,$2,$3)',[id,'Weihnachten',names]);
    const retry:any=(await db.query('SELECT wichtel_list() AS rounds')).rows[0].rounds;
-   assert.deepEqual(retry.find((r:any)=>r.id===id),round);
+   assert.deepEqual(retry.find((r:any)=>r.id===id),opened);
    for(const token of tokens)assert.deepEqual((await db.query('SELECT wichtel_reveal($1) AS result',[token])).rows[0].result,results.get(token));
    await assert.rejects(()=>db.query('SELECT wichtel_draw($1,$2,$3)',[id,'Andere Runde',names]));
   }
   assert.equal(new Set(allTokens).size,allTokens.length);
+  // The small upgrade is safe for an already running draw and retains its view markers.
+  await db.exec('RESET ROLE');await db.exec(await readFile('supabase/wichteln-gelesen.sql','utf8'));
+  await db.exec(`SET ROLE authenticated;SELECT set_config('request.jwt.claim.sub','${owner}',false)`);
+  const upgraded:any=(await db.query('SELECT wichtel_list() AS rounds')).rows[0].rounds;
+  assert.ok(upgraded.every((round:any)=>round.people.every((person:any)=>typeof person.revealed_at==='string')));
   // Reinstalling the temporary feature never re-draws existing rounds.
   await db.exec('RESET ROLE');await db.exec(sql);
   await db.exec(`SET ROLE anon;SELECT set_config('request.jwt.claim.sub','',false)`);

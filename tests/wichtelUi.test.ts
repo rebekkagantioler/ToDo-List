@@ -25,9 +25,9 @@ test('Engila Bengila keeps the recipient as dynamic text and supports long names
  }
 });
 test('the organizer can copy a link for each person without rendering or automatically opening their assignments',()=>{
- const round:any={id:'round',title:'Engila Bengila',created_at:'2026-11-17',people:[{id:'own',name:'Rebekka',token:'ab'.repeat(32),recipient:'SECRET_RECIPIENT_ONE'},{id:'other',name:'Anna',token:'cd'.repeat(32),recipient:'SECRET_RECIPIENT_TWO'}]};
+ const round:any={id:'round',title:'Engila Bengila',created_at:'2026-11-17',people:[{id:'own',name:'Rebekka',token:'ab'.repeat(32),revealed_at:'2026-11-18T12:30:00Z',recipient:'SECRET_RECIPIENT_ONE'},{id:'other',name:'Anna',token:'cd'.repeat(32),revealed_at:null,recipient:'SECRET_RECIPIENT_TWO'}]};
  let copied=false;
  const html=renderToStaticMarkup(createElement(WichtelRoundLinks,{round,base:'https://example.test/ToDo-List/',copied:'',onCopy:()=>{copied=true}}));
  assert.match(html,/Rebekka/);assert.match(html,/Anna/);assert.equal((html.match(/Link kopieren<\/span>/g)||[]).length,2);
- assert.doesNotMatch(html,/SECRET_RECIPIENT|<a\s|Mein Los öffnen/);assert.match(html,/#engila=/);assert.equal(copied,false);
+ assert.match(html,/Angesehen/);assert.match(html,/Noch nicht geöffnet/);assert.doesNotMatch(html,/SECRET_RECIPIENT|<a\s|Mein Los öffnen/);assert.match(html,/#engila=/);assert.equal(copied,false);
 });
