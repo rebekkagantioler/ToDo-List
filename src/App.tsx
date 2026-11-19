@@ -1,5 +1,6 @@
 import {Wichtel,useWichtelAccess} from './WichtelAdmin';
 import {courseNeedsWorksheetSync} from './courseWorksheetSync';
+import {useCourseCardLayout} from './useCourseCardLayout';
 import {DirectLabel} from './DirectLabel';
 import { CourseSheetPoints } from './CourseSheetPoints';
 import { courseSheetMaximum } from './sheetPoints';
@@ -569,9 +570,13 @@ function AttendanceOverview({data,mutate,now}:{data:AppData;mutate:any;now:Date}
  return <div className="attendance-overview"><div className="page-heading"><div><p className="eyebrow">Dein Semester im Blick</p><h1>Anwesenheiten</h1><p className="muted">Alle Kurse und Termine. Deine Häkchen sind mit dem Postfach und der Zeitanrechnung verbunden.</p></div></div>
  <p className="attendance-hint">✓ Anwesend · × Gefehlt · □ Offen · Datum anklicken zum Bearbeiten.</p>
  {!data.courses.length&&<Empty icon={<BookOpen/>} title="Noch keine Kurse" text="Lege unter Kurse deine Lehrveranstaltungen und Termine an."/>}
- {groups.map(group=>{const courses=orderedCourses(data).filter(c=>attendancePolicy(data,c).required===group.required);return courses.length>0&&<section className="attendance-section" key={String(group.required)}><h2>{group.title} <span className="section-count">{courses.length}</span></h2><div className="attendance-grid">{courses.map(course=>{
+ {groups.map(group=>{const courses=orderedCourses(data).filter(c=>attendancePolicy(data,c).required===group.required);return courses.length>0&&<AttendanceCourseGroup key={String(group.required)} title={group.title} courses={courses} data={data} mutate={mutate} now={now}/>})}</div>;
+}
+function AttendanceCourseGroup({title,courses,data,mutate,now}:{title:string;courses:Course[];data:AppData;mutate:any;now:Date}){
+ const {gridRef,shownCourses}=useCourseCardLayout(courses,true);
+ return <section className="attendance-section"><h2>{title} <span className="section-count">{courses.length}</span></h2><div className="attendance-grid" ref={gridRef}>{shownCourses.map(course=>{
  const summary=courseAttendance(data,course,now),{rows,policy,present,absent,total,pending,remaining}=summary;
- return <article className="attendance-card" style={{borderTopColor:course.color}} key={course.id}><header><small>{course.code} · {course.semester}</small><h3>{course.name}</h3></header>
+ return <article className="attendance-card" data-performance-course={course.id} style={{borderTopColor:course.color}} key={course.id}><header><small>{course.code} · {course.semester}</small><h3>{course.name}</h3></header>
  <div className="attendance-totals"><span><b>{present}/{total}</b> besucht</span><span className={absent?'has-absences':''}><b>{absent}</b> gefehlt</span></div>
  <progress className="attendance-progress" value={present} max={total||1} aria-label={`${present} von ${total} Terminen besucht`}/>
  {policy.required&&<p className={`attendance-budget ${policy.limit!==null&&absent>policy.limit?'over-limit':''}`}>{remaining===null?'Fehlgrenze offen':absent>policy.limit! ? `Fehlgrenze um ${absent-policy.limit!} überschritten`:`Noch ${remaining} ${remaining===1?'Fehltermin':'Fehltermine'} möglich`}{pending>0&&<small>{pending} vergangene {pending===1?'Antwort offen':'Antworten offen'}</small>}</p>}
@@ -579,7 +584,7 @@ function AttendanceOverview({data,mutate,now}:{data:AppData;mutate:any;now:Date}
  <div className="attendance-dates">{rows.map(row=><AttendanceCompactDate key={`${row.event.id}-${row.date}`} row={row} course={course} data={data} mutate={mutate}/>)}</div>
  <AttendancePolicyEditor key={`${course.id}-${policy.required}-${policy.limit}`} course={course} policy={policy} mutate={mutate}/>
  {!rows.length&&<p className="muted">Noch keine Termine vorhanden. Ergänze sie in den Kursdetails.</p>}{summary.openEnded&&<p className="attendance-hint">Terminserie ohne Enddatum: Termine bis heute. Für alle zukünftigen Termine bitte ein Enddatum im Kurs ergänzen.</p>}
- </article>})}</div></section>})}</div>;
+ </article>})}</div></section>;
 }
 function AttendancePolicyEditor({course,policy,mutate}:{course:Course;policy:{required:boolean;limit:number|null};mutate:any}){
  const [required,setRequired]=useState(policy.required),[limit,setLimit]=useState(policy.limit===null?'':String(policy.limit));
