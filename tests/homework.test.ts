@@ -43,6 +43,15 @@ test('an exercise that was never planned shifts its worksheet number to the next
  assert.ok(plan.remove.some(task=>task.id===homeworkId('test','2026-10-26')));
  assert.deepEqual(plan.create.map(task=>task.title),['Blatt 2']);
 });
+test('an unplanned exercise renumbers already created open worksheets',()=>{
+ const d=fixture(),numbered={...series,numbering:{start:1,from:'2026-10-19'}};
+ d.recurring[0].ends_on='2026-11-16';d.settings[0].value=JSON.stringify(numbered);
+ d.tasks=homeworkPlan(d,new Date('2026-11-16T10:00')).create;
+ d.settings.push({key:'lecture-unplanned-1',value:'["2026-10-26"]'});
+ const plan=homeworkPlan(d,new Date('2026-11-16T10:00'));
+ assert.ok(plan.remove.some(task=>task.id===homeworkId('test','2026-10-26')));
+ assert.deepEqual(plan.update.map(task=>task.title),['Blatt 2','Blatt 3','Blatt 4']);
+});
 test('Next sheet appears immediately even if its deadline is several weeks away',()=>{
  const d=fixture();d.recurring[0].starts_on='2026-11-09';d.recurring[0].ends_on='2026-11-23';
  d.settings[0].value=JSON.stringify({...series,starts_on:'2026-11-09',numbering:{start:4,from:'2026-11-09'}});

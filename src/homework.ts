@@ -59,7 +59,8 @@ export function homeworkTitle(data:AppData,series:HomeworkSeries,date:string){
  // Existing numbers stay reserved, including after a late cancellation.
  // This keeps newly released sheets from reusing an already visible number.
  const event=data.recurring.find(e=>e.id===series.event_id)!;
- for(const previous of occurrenceDates(event).filter(d=>d>=numbering.from&&d<date&&!unplannedDates(data,event.id).includes(d))){
+ const currentDates=new Set(dates);
+ for(const previous of occurrenceDates(event).filter(d=>d>=numbering.from&&d<date&&!unplannedDates(data,event.id).includes(d)&&!currentDates.has(d))){
   const task=data.tasks.find(t=>t.id===homeworkId(series.id,previous));if(!task)continue;
   const rename=series.title_updates?.[String(task.id)];
   const title=rename&&task.title===rename.from?rename.to:task.title;
@@ -101,6 +102,10 @@ export function homeworkPlan(data:AppData,now=new Date()){
     const title=existing.title===rename.from?rename.to:existing.title;
     const deadline=rename.deadline_to&&existing.deadline===rename.deadline_from?rename.deadline_to:existing.deadline;
     if(title!==existing.title||deadline!==existing.deadline)update.push({...existing,title,deadline});
+   }
+   if(existing&&!skipped&&!series.deleted&&existing.status!=='Erledigt'&&!rename&&worksheetNumber(existing.title,series.task.title)!==null){
+    const title=homeworkTitle(data,series,date);
+    if(title!==existing.title)update.push({...existing,title});
    }
    if(!existing&&!series.stopped&&!series.deleted&&!skipped&&(release<=now||date===nextDate||series.imported_dates?.includes(date)))create.push({...series.task,title:homeworkTitle(data,series,date),id,deadline,created_at:now.toISOString(),completed_at:null});
   }
