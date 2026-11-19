@@ -59,7 +59,7 @@ export function homeworkTitle(data:AppData,series:HomeworkSeries,date:string){
  // Existing numbers stay reserved, including after a late cancellation.
  // This keeps newly released sheets from reusing an already visible number.
  const event=data.recurring.find(e=>e.id===series.event_id)!;
- for(const previous of occurrenceDates(event).filter(d=>d>=numbering.from&&d<date)){
+ for(const previous of occurrenceDates(event).filter(d=>d>=numbering.from&&d<date&&!unplannedDates(data,event.id).includes(d))){
   const task=data.tasks.find(t=>t.id===homeworkId(series.id,previous));if(!task)continue;
   const rename=series.title_updates?.[String(task.id)];
   const title=rename&&task.title===rename.from?rename.to:task.title;

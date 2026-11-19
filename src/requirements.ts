@@ -43,7 +43,11 @@ export function isSkipped(data:AppData,id:number){return data.settings.some(s=>s
 export function matchesTask(r:CourseRequirement,t:Task){return r.kind!=='exam'&&(r.taskIds?.includes(t.id)||!!r.taskType&&r.taskType===t.type)}
 export function linkedTasks(data:AppData,r:CourseRequirement){
  const courseId=data.courses.find(c=>courseRequirements(data,c.id).some(x=>x.id===r.id))?.id;
- return data.tasks.filter(t=>t.course_id===courseId&&matchesTask(r,t));
+ return data.tasks.filter(t=>{
+  if(t.course_id!==courseId)return false;
+  const explicit=courseRequirements(data,courseId!).filter(requirement=>requirement.taskIds?.includes(t.id));
+  return explicit.length?explicit.some(requirement=>requirement.id===r.id):matchesTask(r,t);
+ });
 }
 export function requirementEntries(data:AppData,r:CourseRequirement):PerformanceEntry[]{
  const saved=performanceEntries(data,r.id);
@@ -101,7 +105,7 @@ export function performanceQuestions(data:AppData,path:string,method:string,body
  const taskId=/^\/tasks\/(\d+)$/.exec(path)?.[1];
  const task=taskId?data.tasks.find(t=>t.id===Number(taskId)):undefined;
  if(task&&method==='PUT'&&body?.status==='Erledigt'&&task.status!=='Erledigt'&&!body._skip){
-  return allRequirements(data).filter(({course,requirement:r})=>course.id===task.course_id&&r.kind==='homework'&&matchesTask(r,task)&&(!r.attendanceRequired||worksheetAttendance(data,r,{requirementId:r.id,source:`task-${task.id}`,label:task.title,amount:0})!=='no')).map(({course,requirement})=>({requirement,source:`task-${task.id}`,label:task.title,pointsMaximum:courseSheetMaximum(data,course.id)??requirement.pointsPerSheet}));
+  return allRequirements(data).filter(({course,requirement:r})=>course.id===task.course_id&&r.kind==='homework'&&linkedTasks(data,r).some(linked=>linked.id===task.id)&&(!r.attendanceRequired||worksheetAttendance(data,r,{requirementId:r.id,source:`task-${task.id}`,label:task.title,amount:0})!=='no')).map(({course,requirement})=>({requirement,source:`task-${task.id}`,label:task.title,pointsMaximum:courseSheetMaximum(data,course.id)??requirement.pointsPerSheet}));
  }
  const attendance=/^\/settings\/(lecture-attendance-\d+-\d{4}-\d{2}-\d{2})$/.exec(path)?.[1];
  if(attendance&&method==='PUT'&&!body?._performanceBackfill&&body?.value==='yes'&&data.settings.find(s=>s.key===attendance)?.value!=='yes'){
