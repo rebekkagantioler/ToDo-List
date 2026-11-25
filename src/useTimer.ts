@@ -3,27 +3,30 @@ import { cloud, timerStorageKey } from './cloud';
 import { api } from './api';
 import { newTimer, stoppedTimer, timerSession, type ActiveTimer } from './timer';
 const key='active-timer-v1';
+const timerTimeout=8000;
 const readLocal=():ActiveTimer|null=>{try{const value=JSON.parse(localStorage.getItem(timerStorageKey())||'null');return value?newTimer(value):null}catch{return null}};
 
-export function useTimer(onError:(message:string)=>void,onSaved:()=>Promise<void>){
+export function useTimer(onError:(message:string)=>void,onSaved:(session:ReturnType<typeof timerSession>,saved:unknown)=>void){
  const [timer,setState]=useState<ActiveTimer|null>(cloud?null:readLocal);
  const [busy,setBusy]=useState(false);
  const current=useRef(timer),raw=useRef('null'),locked=useRef(false),revision=useRef(0),ready=useRef(!cloud);
- const apply=(value:string)=>{raw.current=value;const next=JSON.parse(value) as ActiveTimer|null;current.current=next;setState(next);if(next)localStorage.setItem(timerStorageKey(),JSON.stringify(next));else localStorage.removeItem(timerStorageKey())};
+ const show=(next:ActiveTimer|null)=>{current.current=next;setState(next)};
+ const apply=(value:string)=>{raw.current=value;const next=JSON.parse(value) as ActiveTimer|null;show(next);if(next)localStorage.setItem(timerStorageKey(),value);else localStorage.removeItem(timerStorageKey())};
  const sync=async()=>{
   if(!cloud||locked.current)return;
   const version=revision.current;
-  const result=await cloud.from('settings').select('value').eq('key',key).abortSignal(AbortSignal.timeout(15000)).maybeSingle();
+  const result=await cloud.from('settings').select('value').eq('key',key).abortSignal(AbortSignal.timeout(timerTimeout)).maybeSingle();
   if(result.error)throw new Error(result.error.message);
   if(locked.current||version!==revision.current)return;
   if(!result.data){
    const local=readLocal();
-   const inserted=await cloud.from('settings').upsert({key,value:JSON.stringify(local)},{onConflict:'user_id,key',ignoreDuplicates:true}).abortSignal(AbortSignal.timeout(15000));
+   const inserted=await cloud.from('settings').upsert({key,value:JSON.stringify(local)},{onConflict:'user_id,key',ignoreDuplicates:true}).abortSignal(AbortSignal.timeout(timerTimeout));
    if(inserted.error)throw new Error(inserted.error.message);
    // Read the winning value if another device initialized at the same time.
    return sync();
   }
-  apply(result.data.value);ready.current=true;
+  if(!ready.current||result.data.value!==raw.current)apply(result.data.value);
+  ready.current=true;
  };
  useEffect(()=>{
   let active=true;
@@ -33,10 +36,10 @@ export function useTimer(onError:(message:string)=>void,onSaved:()=>Promise<void
   window.addEventListener('focus',update);document.addEventListener('visibilitychange',update);window.addEventListener('storage',storage);
   return()=>{active=false;clearInterval(tick);window.removeEventListener('focus',update);document.removeEventListener('visibilitychange',update);window.removeEventListener('storage',storage)};
  },[]);
- const write=async(next:ActiveTimer|null)=>{
+ const write=async(next:ActiveTimer|null,signal=AbortSignal.timeout(timerTimeout))=>{
   const value=JSON.stringify(next);
   if(cloud){
-   const result=await cloud.from('settings').update({value}).eq('key',key).eq('value',raw.current).select('value').abortSignal(AbortSignal.timeout(15000));
+   const result=await cloud.from('settings').update({value}).eq('key',key).eq('value',raw.current).select('value').abortSignal(signal);
    if(result.error)throw new Error(result.error.message);
    if(!result.data?.length)throw new Error('Der Timer wurde auf einem anderen Gerät geändert. Bitte kurz warten und erneut versuchen.');
   }
@@ -57,12 +60,41 @@ export function useTimer(onError:(message:string)=>void,onSaved:()=>Promise<void
  const stopTimer=()=>run(async()=>{
   if(!current.current)return;
   const stopped=stoppedTimer(current.current);
-  await write(stopped);
-  await api('/sessions','POST',timerSession(stopped));
-  await write(null);
-  void onSaved().catch(e=>onError(e instanceof Error?e.message:'Ansicht konnte nicht aktualisiert werden.'));
+  const session=timerSession(stopped);
+  const signal=AbortSignal.timeout(timerTimeout);
+  let saved;
+  try{
+   if(cloud){
+    const result=await cloud.rpc('finish_timer',{expected_value:raw.current,session_data:session}).abortSignal(signal);
+    if(!result.error){
+     apply('null');
+     onSaved(session,result.data);
+     return;
+    }
+    // Older installations still support saving while the SQL update is pending.
+    if(result.error.code!=='PGRST202')throw new Error(result.error.message);
+    if(raw.current!==JSON.stringify(stopped))await write(stopped,signal);
+    const inserted=await cloud.from('work_sessions')
+     .upsert(session,{onConflict:'user_id,id',ignoreDuplicates:true})
+     .select('*').abortSignal(signal).maybeSingle();
+    if(inserted.error)throw new Error(inserted.error.message);
+    saved=inserted.data??session;
+    onSaved(session,saved);
+    await write(null,signal);
+    return;
+   }
+   saved=await api('/sessions','POST',session);
+   await write(null);
+   onSaved(session,saved);
+  }catch(error){
+   if(signal.aborted&&cloud)throw new Error('Die Cloud antwortet gerade nicht. Der Timer wird abgeglichen. Bitte versuche es bei Bedarf erneut.');
+   throw error;
+  }
  });
- const requestStop=()=>run(async()=>{if(current.current)await write(stoppedTimer(current.current))});
+ const requestStop=async()=>{
+  if(locked.current||!current.current)return;
+  show(stoppedTimer(current.current));
+ };
  const cancelStop=()=>run(async()=>{
   if(!current.current?.stoppedAt)return;
   const {stoppedAt,...paused}=current.current;

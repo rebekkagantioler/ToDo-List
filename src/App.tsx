@@ -72,7 +72,14 @@ export default function App(){
  const [sidebarHidden,setSidebarHidden]=useState(()=>localStorage.getItem('planraum-sidebar')==='hidden');
  useEffect(()=>{localStorage.setItem('planraum-sidebar',sidebarHidden?'hidden':'visible')},[sidebarHidden]);
  const [view,setView]=useState<View>('dashboard'); const [dark,setDark]=useState(()=>localStorage.getItem('planraum-theme')==='dark'); const [loading,setLoading]=useState(true); const [loadError,setLoadError]=useState(''); const [notice,setNotice]=useState('');
- const {timer,setTimer,stopTimer,requestStop,cancelStop,busy:savingTime}=useTimer(setNotice,async()=>{await refresh();setNotice('Arbeitszeit gespeichert.')});
+ const {timer,setTimer,stopTimer,requestStop,cancelStop,busy:savingTime}=useTimer(setNotice,(session,saved)=>{
+  setData(current=>{
+   const updated=applySavedRecord(current,'/sessions','POST',session,saved);
+   const added=updated.sessions.at(-1);
+   return added&&current.sessions.some(row=>row.id===added.id)?current:updated;
+  });
+  setNotice('Arbeitszeit gespeichert.');
+ });
  useAppUpdate(loading||!!timer||savingTime);
  const refresh=async()=>{setData(await loadData());};
  const startLoad=()=>{setLoading(true);setLoadError('');let displayed=false;void loadData(stored=>{displayed=true;setData(stored);setLoading(false)}).then(setData).catch(e=>{const message=e instanceof Error?e.message:'Daten konnten nicht geladen werden.';if(displayed)setNotice(`Deine gespeicherten Daten sind geladen. Automatische Aktualisierung noch nicht abgeschlossen: ${message}`);else setLoadError(message)}).finally(()=>setLoading(false));};
