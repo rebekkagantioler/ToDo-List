@@ -9,6 +9,7 @@ import { attendanceKey } from './statistics';
 import { homeworkPlan } from './homework';
 import { worksheetReassignment } from './worksheetReassignment';
 const tables:Record<string,string>={courses:'courses',tasks:'tasks',sessions:'work_sessions',blocks:'planned_blocks',recurring:'recurring_events',settings:'settings'};
+export const isConnectionError=(message:string)=>/aborterror|timeouterror|fetch is aborted|load failed|failed to fetch|fetch failed|network|networkerror/i.test(message);
 const columns:Record<string,string[]>={courses:['name','code','semester','ects','hours_per_ects','color','description'],tasks:['title','description','area','type','course_id','deadline','estimate_minutes','priority','status','tracking','completed_at'],sessions:['task_id','course_id','started_at','ended_at','kind','note'],blocks:['task_id','course_id','title','starts_at','ends_at','kind'],recurring:['course_id','title','weekday','start_time','end_time','starts_on','ends_on','auto_track'],settings:['key','value']};
 async function readData(): Promise<AppData> {
  if(!cloud){const r=await fetch('/api/data',{signal:AbortSignal.timeout(45000)});if(!r.ok)throw new Error('Backend nicht erreichbar');return enrichData(await r.json())}
@@ -75,7 +76,8 @@ async function performApi(path:string,method='POST',body?:unknown):Promise<any>{
  for(let attempt=0;;attempt++){
   try{return await request(path,method,stableBody)}catch(error){
    const message=error instanceof Error?error.message:String(error);
-   const network=/load failed|failed to fetch|fetch failed|network|networkerror/i.test(message);
+   if(/aborterror|timeouterror|fetch is aborted/i.test(message))throw new Error('Die Verbindung antwortet gerade nicht. Bitte prüfe, ob die Änderung gespeichert wurde.');
+   const network=isConnectionError(message);
    if(!network)throw error;
    if(attempt>=2||(!cloud&&method==='POST')||(['/import','/course-copy'].includes(path)||path.startsWith('/course-update/')))throw new Error('Die Verbindung wurde unterbrochen. Bitte prüfe, ob der Eintrag gespeichert wurde, bevor du es erneut versuchst.');
    await new Promise(resolve=>setTimeout(resolve,400*(attempt+1)));

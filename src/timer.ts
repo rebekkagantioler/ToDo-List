@@ -1,4 +1,19 @@
 export type ActiveTimer = {id:number;taskId?:number|null;courseId?:number|null;startedAt:string;accumulatedMs?:number;paused?:boolean;stoppedAt?:string};
+
+export async function waitForTimerCloud<T>(request:PromiseLike<T>,signal:AbortSignal):Promise<T>{
+ const timeoutError=()=>new Error('Die Cloud antwortet gerade nicht. Der Timerstatus wird abgeglichen.');
+ if(signal.aborted)throw timeoutError();
+ let abort:()=>void=()=>{};
+ const deadline=new Promise<never>((_,reject)=>{
+  abort=()=>reject(timeoutError());
+  signal.addEventListener('abort',abort,{once:true});
+ });
+ try{
+  const result=await Promise.race([request,deadline]);
+  if(signal.aborted)throw timeoutError();
+  return result;
+ }finally{signal.removeEventListener('abort',abort)}
+}
 export const timerDuration=(timer:ActiveTimer,now=Date.now())=>(timer.accumulatedMs||0)+(timer.paused?0:Math.max(0,now-new Date(timer.startedAt).getTime()));
 export const newTimer=(timer:Omit<ActiveTimer,'id'>&{id?:number}):ActiveTimer=>({...timer,id:timer.id??Math.floor(Math.random()*3500000000000000)+1});
 export function stoppedTimer(timer:ActiveTimer,now=Date.now()):ActiveTimer{

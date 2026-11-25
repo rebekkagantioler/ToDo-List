@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { newTimer, backdatedTimer, timerDuration, stoppedTimer, timerSession } from '../src/timer';
+import { newTimer, backdatedTimer, timerDuration, stoppedTimer, timerSession, waitForTimerCloud } from '../src/timer';
 
 test('timer duration uses shared timestamps and excludes pauses',()=>{
  const timer=newTimer({startedAt:'2026-10-27T10:00:00Z',accumulatedMs:60000});
@@ -49,4 +49,16 @@ test('Backdated timer rejects invalid and future beginnings and supports study w
  assert.throws(()=>backdatedTimer('2026-11-03T01:00:00Z',null,null,now));
  const timer=newTimer(backdatedTimer('2026-11-02T23:50:00Z',null,7,now));
  assert.equal(timerDuration(timer,now),20*60000);assert.equal(timer.taskId,null);assert.equal(timer.courseId,7);
+});
+
+
+test('the timer unlocks when the request is aborted even if the cloud client is still waiting',async()=>{
+ const controller=new AbortController();
+ let resolveRequest:(value:string)=>void=()=>{};
+ const request=new Promise<string>(resolve=>{resolveRequest=resolve});
+ const pending=waitForTimerCloud(request,controller.signal);
+ controller.abort();
+ await assert.rejects(pending,/Cloud antwortet gerade nicht/);
+ resolveRequest('late confirmation');
+ assert.equal(await waitForTimerCloud(Promise.resolve('confirmed'),new AbortController().signal),'confirmed');
 });
