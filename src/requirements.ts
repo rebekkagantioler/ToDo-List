@@ -96,7 +96,10 @@ export function requirementProgress(data:AppData,r:CourseRequirement){
  const recordedPossible=entries.reduce((sum,e)=>sum+(e.possible||0),0);
  const possible=worksheet?.maximum??r.maximumPoints??recordedPossible;
  const value=r.kind==='exam'?(r.examResult==='passed'?1:0):r.percentage?(possible>0?amount/possible*100:0):amount;
- return {entries,amount,possible,recordedPossible,value,worksheet,unallocatedCurrent,fulfilled:r.kind==='exam'?r.examResult==='passed':(!(r.kind==='homework'&&(r.dropLowest||0)>0&&!r.worksheetFinalized))&&(!r.percentage||possible>0)&&value>=r.target};
+ const guaranteedValue=worksheet?.pendingFinalization
+  ?worksheet.guaranteedAmount===undefined?undefined:r.percentage?(worksheet.finalMaximum?worksheet.guaranteedAmount/worksheet.finalMaximum*100:undefined):worksheet.guaranteedAmount
+  :value;
+ return {entries,amount,possible,recordedPossible,value,worksheet,unallocatedCurrent,fulfilled:r.kind==='exam'?r.examResult==='passed':(!r.percentage||possible>0)&&guaranteedValue!==undefined&&guaranteedValue>=r.target};
 }
 export const kindLabels:Record<RequirementKind,string>={exam:'Klausur / mündliche Prüfung',homework:'Hausaufgaben / Übungspunkte',reflection:'Reflexionen / Texte',presentation:'Vorrechnen / Präsentation',other:'Sonstiges'};
 export const examDateLabel=(r:CourseRequirement)=>r.dateMode==='fixed'&&r.date?`${new Date(r.date+'T12:00').toLocaleDateString('de-AT')}${r.time?' · '+r.time:''}`:r.dateMode==='choose'?'Termin selbst wählen':'Termin noch unbekannt';

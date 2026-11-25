@@ -42,5 +42,12 @@ export function assessWorksheets(data:AppData,r:CourseRequirement,entries:Perfor
  const finalMaximum=worksheetMaximum(data,r),pendingFinalization=(r.dropLowest||0)>0&&!r.worksheetFinalized;
  const maximum=finalMaximum;
  const canFinalize=!!r.worksheetCount&&eligible.length===r.worksheetCount&&rows.every(x=>x.attendance!==null&&x.attendance!=='unplanned')&&r.current===0;
- return {rows,dropped,credited:eligible.filter(x=>!dropped.has(x.entry.source)).map(x=>({...x.entry,amount:x.effectiveAmount})),maximum,finalMaximum,pendingFinalization,canFinalize};
+ // Open results and unresolved attendance contribute zero to the guaranteed score.
+ const confirmedScores=eligible.map(x=>x.attendance===null?0:x.effectiveAmount).sort((a,b)=>b-a);
+ const retainedCount=Math.max(0,(r.worksheetCount??eligible.length)-(r.dropLowest||0));
+ const openSheets=(r.worksheetCount??0)-eligible.length;
+ const guaranteedAmount=openSheets>=(r.dropLowest||0)
+  ?confirmedScores.slice(0,retainedCount).reduce((sum,points)=>sum+points,0)
+  :undefined;
+ return {rows,dropped,credited:eligible.filter(x=>!dropped.has(x.entry.source)).map(x=>({...x.entry,amount:x.effectiveAmount})),maximum,finalMaximum,pendingFinalization,canFinalize,guaranteedAmount};
 }

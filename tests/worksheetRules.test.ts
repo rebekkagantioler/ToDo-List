@@ -123,3 +123,23 @@ test('a canceled lesson credits earned points even if a previous absence answer 
  const ongoing={...r,worksheetFinalized:false},p=requirementProgress(data,ongoing);
  assert.equal(p.worksheet!.rows.find(x=>x.entry.source==='manual-2')!.effectiveAmount,4);assert.equal(p.amount,56);assert.equal(p.worksheet!.dropped.size,0);
 });
+
+test('the worksheet minimum is fulfilled early only when confirmed points survive open attendance and discards',()=>{
+ const running={...r,worksheetCount:8,worksheetFinalized:false},data=fixture();
+ data.settings=data.settings.filter(s=>!s.key.startsWith('performance-entry-')||
+  Array.from({length:6},(_,index)=>entryKey(r.id,`manual-${index+1}`)).includes(s.key));
+ const progress=()=>requirementProgress(data,running);
+ assert.equal(progress().amount,24);
+ assert.equal(progress().fulfilled,true);
+ assert.equal(worksheetProgress(data,1,running).done,true);
+ attendance(data,6,'');
+ assert.equal(progress().amount,24);
+ assert.equal(progress().fulfilled,false);
+ attendance(data,6,'yes');
+ data.settings.push({key:entryKey(r.id,'manual-7'),value:JSON.stringify({
+  requirementId:r.id,source:'manual-7',label:'Blatt 7',date:'2026-11-07',amount:4,possible:4
+ })});
+ assert.equal(progress().amount,28);
+ assert.equal(progress().fulfilled,false);
+
+});

@@ -70,6 +70,14 @@ export function requirementScore(data:AppData,r:CourseRequirement,rule:PassingRu
  return {percentage:Math.min(100,progress.amount/r.target*100),earned:null,possible:null};
 }
 export type PassingStatus='met'|'unmet'|'pending';
+function aggregatePercentage(scores:RequirementScore[],aggregation:PassingRule['groups'][number]['aggregation']):number|null{
+ if(!scores.length||scores.some(score=>score.percentage===null))return null;
+ if(aggregation==='points'&&scores.length>1){
+  if(scores.some(score=>score.possible===null))return null;
+  return scores.reduce((sum,score)=>sum+score.earned!,0)/scores.reduce((sum,score)=>sum+score.possible!,0)*100;
+ }
+ return scores.reduce((sum,score)=>sum+score.percentage!,0)/scores.length;
+}
 export function evaluatePassingRule(data:AppData,courseId:number){
  const rule=coursePassingRule(data,courseId),requirements=courseRequirements(data,courseId);
  if(!rule)return null;
@@ -77,16 +85,21 @@ export function evaluatePassingRule(data:AppData,courseId:number){
  const groups=rule.groups.map(group=>{
   const members=group.requirementIds.flatMap(id=>{const r=requirements.find(r=>r.id===id);return r?[r]:[]});
   const scores=members.map(r=>requirementScore(data,r,rule));
-  const allKnown=members.length>0&&scores.every(s=>s.percentage!==null);
-  const totalPossible=scores.reduce((sum,s)=>sum+(s.possible||0),0);
-  const allPointScores=allKnown&&scores.every(s=>s.possible!==null);
-  const percentage=!allKnown?null:group.aggregation==='points'&&members.length>1
-   ?allPointScores?scores.reduce((sum,s)=>sum+s.earned!,0)/totalPossible*100:null
-   :scores.reduce((sum,s)=>sum+s.percentage!,0)/scores.length;
+  const percentage=aggregatePercentage(scores,group.aggregation);
   const checks:PassingStatus[]=[];
   if(group.minimum!==null){
    if(group.examMode==='each'&&members.every(r=>r.kind==='exam'))checks.push(...scores.map(s=>s.percentage===null?'pending' as const:s.percentage+1e-9>=group.minimum!?'met' as const:'unmet' as const));
-   else checks.push(percentage===null?'pending':percentage+1e-9>=group.minimum?'met':'unmet');
+   else if(percentage!==null)checks.push(percentage+1e-9>=group.minimum?'met':'unmet');
+   else{
+    const guaranteedScores=scores.map((score,index)=>{
+     if(score.percentage!==null||members[index].kind!=='homework')return score;
+     const worksheet=requirementProgress(data,members[index]).worksheet;
+     if(!worksheet?.pendingFinalization||!worksheet.finalMaximum||worksheet.guaranteedAmount===undefined)return score;
+     return {percentage:worksheet.guaranteedAmount/worksheet.finalMaximum*100,earned:worksheet.guaranteedAmount,possible:worksheet.finalMaximum};
+    });
+    const guaranteedPercentage=aggregatePercentage(guaranteedScores,group.aggregation);
+    checks.push(guaranteedPercentage!==null&&guaranteedPercentage+1e-9>=group.minimum?'met':'pending');
+   }
   }
   if(group.mustFulfill){
    if(group.examMode==='combined'){
