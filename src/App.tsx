@@ -243,6 +243,13 @@ function Courses({data,mutate}:{data:AppData;mutate:any}){
  const [open,setOpen]=useState(false),[selected,setSelected]=useState<Course|null>(null),[detail,setDetail]=useState<Course|null>(null);
  if(detail){const course=data.courses.find(c=>c.id===detail.id);if(course)return <CourseDetail course={course} data={data} mutate={mutate} onBack={()=>setDetail(null)}/>}
  const workload=chosen==='all'?null:courseWorkload(shownCourses,data);
+ let expectedPercent:number|undefined;
+ if(period){
+  const start=new Date(`${period.start}T00:00`).getTime();
+  const end=new Date(`${period.end}T00:00`);
+  end.setDate(end.getDate()+1);
+  expectedPercent=Math.max(0,Math.min(100,(Date.now()-start)/(end.getTime()-start)*100));
+ }
  const number=new Intl.NumberFormat('de-AT',{maximumFractionDigits:2});
  return <><div className="page-heading"><div><p className="eyebrow">Studium</p><h1>Kurse</h1><p className="muted">{shownCourses.length} Kurse · Alle Semester bleiben zugänglich.</p></div><button className="primary" onClick={()=>{setSelected(null);setOpen(true)}}><Plus size={17}/>Kurs anlegen</button></div>
  {workload&&<section className="course-workload">
@@ -251,7 +258,7 @@ function Courses({data,mutate}:{data:AppData;mutate:any}){
    <div><dt>Arbeitszeit</dt><dd>{number.format(workload.hours)} von {number.format(workload.targetHours)} Stunden</dd></div>
    <div><dt>ECTS nach Zeitaufwand</dt><dd>{number.format(workload.workloadEcts)} von {number.format(workload.totalEcts)} ECTS</dd></div>
   </dl>
-  <div className="course-progress"><WorkloadBar work={workload.work} lecture={workload.lecture} target={workload.targetHours*60}/></div>
+  <div className="course-progress"><WorkloadBar work={workload.work} lecture={workload.lecture} target={workload.targetHours*60} expectedPercent={expectedPercent}/></div>
  </section>}
  <DirectLabel className="semester-picker course-semester-picker">Semester<select value={chosen} onChange={e=>setSemesterId(e.target.value)}>{periods.map(s=><option key={s.id} value={s.id}>{s.name} · {semesterStatus(s)}</option>)}{unmatched.map(name=><option key={name} value={`label:${name}`}>{name} · ohne Zeitraum</option>)}<option value="all">Alle Semester</option></select></DirectLabel>
  <SortableCourses data={data} shownIds={shownCourses.map(c=>c.id)} mutate={mutate} onOpen={setDetail}/>{!shownCourses.length&&<Empty icon={<BookOpen/>} title="Keine Kurse in diesem Semester" text="Wähle ein anderes Semester oder lege einen Kurs an."/>}
@@ -343,11 +350,11 @@ function SessionModal({data,onClose,onSave,session,onStart,initialTaskId,initial
  </Modal>;
 }
 
-function WorkloadBar({work,lecture,target}:{work:number;lecture:number;target:number}){
+function WorkloadBar({work,lecture,target,expectedPercent}:{work:number;lecture:number;target:number;expectedPercent?:number}){
  const workWidth=target>0?Math.min(100,work/target*100):0;
  const lectureWidth=target>0?Math.min(100-workWidth,lecture/target*100):0;
  const percent=target>0?Math.round((work+lecture)/target*100):0;
- return <>{target>0&&<div className="progress stacked-progress" role="progressbar" aria-label="Arbeitszeit im Verhältnis zum Stundenziel" aria-valuenow={Math.min(100,percent)} aria-valuetext={`${percent} Prozent des Stundenziels`}><i style={{width:`${workWidth}%`}}/><i className="lecture-fill" style={{width:`${lectureWidth}%`}}/></div>}<div className="progress-legend"><span><i/>{fmtMinutes(Math.round(work))} Selbststudium</span><span><i className="lecture-fill"/>{fmtMinutes(Math.round(lecture))} LV</span></div></>;
+ return <>{target>0&&<div className="progress stacked-progress" role="progressbar" aria-label="Arbeitszeit im Verhältnis zum Stundenziel" aria-valuenow={Math.min(100,percent)} aria-valuetext={`${percent} Prozent des Stundenziels`}><i style={{width:`${workWidth}%`}}/><i className="lecture-fill" style={{width:`${lectureWidth}%`}}/>{expectedPercent!==undefined&&<span className="workload-time-marker" aria-hidden="true" style={{left:`${expectedPercent}%`}}/>}</div>}<div className="progress-legend"><span><i/>{fmtMinutes(Math.round(work))} Selbststudium</span><span><i className="lecture-fill"/>{fmtMinutes(Math.round(lecture))} LV</span></div></>;
 }
 
 function CourseProgress({course,data}:{course:Course;data:AppData}){

@@ -709,3 +709,12 @@ label,.course-visibility-choice{cursor:default}input:is([type=checkbox],[type=ra
 .course-workload dd { margin: 4px 0 0; font-size: 20px; font-weight: 700; }
 .course-workload .stacked-progress { margin-top: 16px; }
 .course-workload .progress-legend { margin-bottom: 0; }
+.course-workload .stacked-progress { position: relative; }
+.workload-time-marker {
+  position: absolute;
+  inset-block: 0;
+  width: 2px;
+  transform: translateX(-50%);
+  background: var(--ink);
+  box-shadow: 0 0 0 1px var(--panel);
+}
