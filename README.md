@@ -4,7 +4,7 @@ React/TypeScript mit Vite, FullCalendar und zwei Speichermöglichkeiten: lokal m
 
 ## Lokal starten
 
-Voraussetzung: Node.js ab 22.12 inklusive npm (z. B. der aktuelle Node.js-LTS-Installer von https://nodejs.org). Node wurde für die Entwicklung nur temporär heruntergeladen; damit ist es noch nicht dauerhaft auf dem Mac installiert.
+Voraussetzung: Node.js ab 22.12 inklusive npm (z. B. der aktuelle Node.js-LTS-Installer von https://nodejs.org).
 
 ```bash
 npm ci
@@ -26,40 +26,25 @@ Für die Vorschau eines Builds: `npm start` für die API und in einem zweiten Te
 GitHub Pages stellt das gebaute Frontend bereit. Die Daten werden dann in Supabase gespeichert; SQLite/Express läuft nicht auf GitHub Pages. Supabase ersetzt im Onlinebetrieb das lokale Backend. Der GitHub-Pages-Code ist öffentlich zugänglich; persönliche Datensätze sind durch Anmeldung und Row Level Security getrennt.
 
 1. Erstelle ein kostenloses Supabase-Projekt und führe `supabase/schema.sql` einmal im SQL Editor auf einer neuen Datenbank aus. Das Skript enthält Tabellen, Fremdschlüssel, benutzerspezifische RLS-Regeln und einen transaktionalen Backup-Import. Beim erneuten Ausführen existieren Policies und Trigger bereits; es ist ein initiales Setup, kein Migrationswerkzeug.
-2. Aktiviere E-Mail/Passwort-Anmeldung. Lege die spätere GitHub-Pages-Adresse unter Authentication → URL Configuration als Site URL und erlaubte Redirect URL fest. Erstelle ein Konto in der App und bestätige deine E-Mail, falls aktiviert.
+2. Aktiviere E-Mail/Passwort-Anmeldung als technische Grundlage für die Anmeldung per Benutzername. Lege die GitHub-Pages-Adresse unter Authentication → URL Configuration als Site URL und erlaubte Redirect URL fest. Für die Registrierung in der App aktiviere „Allow new users to sign up“ und deaktiviere „Confirm Email“.
 3. Setze im GitHub-Repository unter Settings → Secrets and variables → Actions → Variables die Repository-Variablen `VITE_SUPABASE_URL` und `VITE_SUPABASE_ANON_KEY` (Supabase-Publishable-Key oder Legacy-anon-Key). Diese Werte sind für den Browser bestimmt. Ein `service_role`- oder Secret-Key gehört niemals in das Frontend.
 4. Wähle unter Settings → Pages als Build-Quelle **GitHub Actions**. Der Workflow `.github/workflows/pages.yml` prüft die Konfiguration, führt die Tests aus, baut das Frontend und veröffentlicht es bei Änderungen an `main`.
-5. Die erwartete Adresse für dieses Repository ist https://rebekkagantioler.github.io/ToDo-List/. Sie ist erst nach erfolgreicher Deployment-Ausführung aktiv.
+5. Die veröffentlichte App ist unter [Planraum auf GitHub Pages](https://rebekkagantioler.github.io/ToDo-List/) erreichbar.
 
 Um den Supabase-Modus lokal auszuprobieren, kopiere `.env.example` nach `.env`, trage beide Werte ein und starte Vite neu. SQLite-Daten werden nicht automatisch hochgeladen: exportiere zunächst im lokalen Modus JSON und importiere die Sicherung nach Anmeldung im Supabase-Modus. Ein Import ersetzt sämtliche Daten des angemeldeten Kontos. Fehler rollen den Import vollständig zurück.
-
-Es wurde noch kein echtes Supabase-Projekt verbunden und kein Live-Deployment verifiziert. Das SQL-Schema wurde mit einer lokalen PostgreSQL-Engine geprüft, einschließlich RLS zwischen zwei Testbenutzern und fehlerhaftem Import. Die echte Supabase-Auth-/E-Mail-Konfiguration muss mit dem Projekt geprüft werden.
 
 ## Implementiert
 
 - Aufgaben und Kurse erstellen, bearbeiten und löschen; Aufgaben abschließen und wieder öffnen.
 - Kombinierbare Filter nach Status, Bereich, Kurs, Aufgabenart und spätestem Deadline-Datum; Sortierung nach Deadline, Priorität, Aufwand, Kurs, Aufgabenart, Status und Titel.
-- Kursdetailseite mit kursbezogenen Aufgaben, geplanten/vergangenen Einheiten, Zeiteinträgen und ECTS-Vergleich.
+- Kursdetailseite mit Aufgaben, Terminen, Zeiteinträgen und ECTS-Vergleich. Die Kursübersicht zeigt den Studienaufwand für das ausgewählte Semester.
 - Tages-/Wochenkalender, Aufgaben hineinziehen, Blöcke verschieben und verlängern/verkürzen, anklicken zum Bearbeiten/Löschen und einstellbare sichtbare Uhrzeiten.
 - Aufgaben und Kalenderblöcke sind getrennt: Ein gelöschter Block löscht keine Aufgabe.
-- Timer starten, pausieren, fortsetzen, speichern und verwerfen. Laufzeit und Pausen werden aus persistenten Zeitstempeln berechnet; Seitenwechsel und Neuladen erhalten den Timer. Aktive Timer blockieren weitere Starts in derselben App; Änderungen werden zwischen Browser-Tabs synchronisiert. Supabase-Konten haben getrennte lokale Timerzustände.
+- Fokus-Timer mit Pause, Fortsetzen und einem Stopp-Dialog zum Speichern oder Verwerfen. Mit Supabase wird der bestätigte Timerstatus für das angemeldete Konto geräteübergreifend abgeglichen.
 - Manuelle Arbeitszeiten hinzufügen, bearbeiten und löschen.
-- Tatsächliche Arbeitszeit zählt nur aus Zeiteinträgen, niemals zusätzlich aus geplanten Blöcken. ECTS = ECTS × Stunden pro ECTS; der Wert wird als Orientierung dargestellt.
+- Arbeitszeit aus gespeicherten Zeiteinträgen und bestätigten, vergangenen Lehrveranstaltungen mit aktiver Zeiterfassung. Das Stundenziel ergibt sich aus ECTS × Stunden pro ECTS.
 - Dashboard mit heutigen Aufgaben, Deadlines, kommenden Einheiten und tatsächlich innerhalb der aktuellen Woche erfasster Zeit.
 - Heller/dunkler Modus mit lokaler Speicherung, mobile Navigation und vollständiger JSON-Datenexport/-import einschließlich vorhandener Wiederholungen und Einstellungen.
-
-## Noch offen aus dem vollständigen Auftrag
-
-Dieses Projekt ist ein funktionsfähiges Grundsystem, noch nicht die vollständige Umsetzung aller Anforderungen.
-
-- Wiederkehrende Vorlesungen/Übungen: Tabellen und lokale Anlege-/Lösch-API vorhanden; Oberfläche, Kalenderdarstellung, Ausnahmen, Anwesenheitsbestätigung und automatische, einmalige Zeitverbuchung fehlen. Lehrveranstaltungszeit kann bisher manuell als Zeiteintrag an einer Aufgabe erfasst werden.
-- Semester sind bisher Kursfelder; separate Semesterverwaltung, Semesterfilter und vollständige wöchentliche/Kurs-Zeitverteilung fehlen.
-- ECTS-Auswertung zeigt noch keine eigene Summe zukünftiger Planung; automatische Vorlesungszeiten sind nicht implementiert.
-- Deadline ohne Uhrzeit braucht noch eine eigene Auswahl; derzeit verwendet der Aufgabendialog Datum und Uhrzeit.
-- Timer läuft lokal pro Browser. Ein serverseitiger, geräteübergreifender Timer-Lock und atomare Starts über mehrere Tabs fehlen noch. Pausen werden als Gesamtdauer gespeichert, nicht als einzelne Fokusintervalle; bei sehr langen Timern über Wochenwechsel kann die Wochenzuordnung entsprechend abweichen.
-- Kalender-Uhrzeiten und Design werden bisher browserlokal gespeichert bzw. nur für die aktuelle Kalenderansicht gesetzt; zentrale Kontoeinstellungen fehlen.
-- Tailwind CSS aus dem ursprünglichen Auftrag ist nicht eingerichtet; das vorhandene responsive CSS wurde beibehalten.
-- Browserprüfung von Drag-and-drop, Touch-Bedienung, Responsivität sowie echte Supabase-Anmeldung/Deployment stehen noch aus.
 
 ## Tests
 
@@ -87,7 +72,7 @@ Cloud-Speicheraufrufe wiederholen vorübergehende Netzwerkfehler bis zu zweimal 
 
 Die Aufgabenleiste links im Kalender trennt Uni und Privat. Eine Karte auf die gewünschte Uhrzeit ziehen; am Handy kann alternativ „Planen“ verwendet werden. Neue Aufgaben direkt über das Plus in der Leiste erstellen. Privat auswählen und eine Kategorie wählen oder selbst eingeben (etwa Haushalt, Sport oder Einkaufen). Kategorien nutzen das vorhandene Feld `type`, es ist keine Datenbankmigration erforderlich.
 
-Unter Zeiterfassung eine Aufgabe auswählen und „Timer starten“ drücken. Der Timer zeigt Stunden, Minuten und Sekunden; Pause/Fortsetzen und „Stoppen & speichern“ sind dort sowie in der seitenübergreifenden Timerleiste verfügbar. Private Aufgaben haben standardmäßig keine Zeiterfassung, sie kann im Aufgabendialog aktiviert werden. „Verwerfen“ fragt vor dem Verlust ungespeicherter Zeit nach.
+Unter **Zeiterfassung** eine Aufgabe, einen Kurs oder „Privat“ auswählen und „Timer starten“ drücken. Pause, Fortsetzen und Stoppen sind auch in der seitenübergreifenden Timerleiste verfügbar. Private Aufgaben können im Aufgabendialog für die Zeiterfassung aktiviert werden.
 
 Aufgaben werden standardmäßig nach Fälligkeit in Wochen gegliedert: „Diese Woche“, „Nächste Woche“, „Übernächste Woche“ und danach konkrete Wochenzeiträume (Montag bis Sonntag). Darunter bleiben „Heute“, „Morgen“ und die einzelnen Abgabetage sichtbar. Überfälliges steht davor; Aufgaben ohne Deadline stehen am Ende. Spätere Tage zeigen den Abstand in Kalendertagen; bei anderer Sortierung bleibt die gewählte Reihenfolge maßgeblich. Offen/Erledigt/Alle sind direkt erreichbar; weitere kombinierbare Filter lassen sich über „Filter“ einblenden. Auf den Kursseiten wechseln Aufgaben, Planung und Arbeitszeiten über Reiter. Der Menüknopf oben links blendet die Seitenleiste am Desktop vollständig aus und wieder ein; die Auswahl bleibt im Browser gespeichert.
 
@@ -95,7 +80,7 @@ Kalenderkarten am Titel/Griff hineinziehen (Touch: kurz halten). Obere und unter
 
 Der Kalender nutzt die verfügbare Inhaltsbreite. „Aufgaben ausblenden“ schafft zusätzliche Breite; „Große Ansicht“ öffnet den Kalender über die gesamte App-Fläche (zurück über den Button oder Escape). Private geplante Aufgaben erscheinen lila mit der Kennzeichnung „Privat“. Ungeplante private Aufgaben stehen weiterhin in der Aufgabenliste und im Privat-Reiter der Planungsleiste.
 
-Die Fokusansicht zeigt einen Zeitring mit wählbaren 25/45/60 Minuten als Orientierung. Der Timer stoppt nicht automatisch beim Erreichen der Dauer. „Heute gelernt“ summiert ausschließlich gespeicherte Uni-Zeiten innerhalb des aktuellen Tages. Doppeltipp-Zoom wird durch `touch-action: manipulation` reduziert; bewusstes Pinch-/Browser-Zoomen bleibt möglich. Auf mobilen Geräten verhindern 16px-Eingabeschriften unbeabsichtigtes Zoomen beim Fokussieren von Formularfeldern.
+Die Fokusansicht zeigt einen Zeitring mit wählbaren 25/45/60 Minuten als Orientierung. Der Timer stoppt nicht automatisch beim Erreichen der Dauer. Doppeltipp-Zoom wird durch `touch-action: manipulation` reduziert; bewusstes Pinch-/Browser-Zoomen bleibt möglich. Auf mobilen Geräten verhindern 16px-Eingabeschriften unbeabsichtigtes Zoomen beim Fokussieren von Formularfeldern.
 
 Ein Klick auf einen Kalenderblock wählt ihn aus. Bearbeiten wird ausdrücklich über den gleichnamigen Button geöffnet. Die Auswahlleiste erlaubt außerdem −15/+15 Minuten (Mindestdauer 15 Minuten). Freies Ziehen im Raster öffnet keinen Anlegedialog mehr; neue Blöcke werden über „Block planen“ oder Aufgaben-Drag-and-drop erstellt. Große Ansicht blendet die Aufgabenleiste zunächst aus. Auf kleinen Bildschirmen öffnet sich diese als Overlay, sodass das Kalender-Zeitraster weiterhin die volle verfügbare Höhe nutzt.
 
@@ -107,19 +92,23 @@ Speichern: Während einer laufenden Anfrage zeigt der Dialog „Wird gespeichert
 
 ECTS können mit Komma oder Punkt eingegeben werden (z. B. 2,5). Zahlenfelder lassen sich während der Eingabe vollständig leeren. Beim manuellen Nachtragen kann die Dauer direkt in Minuten angegeben werden; Beginn und Ende werden entsprechend angepasst. Kalenderaufgaben werden je Bereich nach Fälligkeit sortiert, Aufgaben ohne Deadline stehen zuletzt. Jede offene Aufgabe kann wiederholt für separate Arbeitseinheiten geplant werden.
 
-Statistiken zeigen eine blätterbare Wochenansicht mit gestapelten Tagesbalken, Vorwochenvergleich, aktiven Tagen und erledigten Aufgaben. Grün steht für Selbststudium/Privatzeit, Lila für Lehrveranstaltungen. In Kursen unter „Wöchentliche Lehrveranstaltungen“ Termine mit Wochentag, Uhrzeit und Semesterzeitraum hinterlegen. Vollständig vergangene Termine werden automatisch angerechnet; zukünftige Termine bleiben unberücksichtigt. Ausfälle und Ferien über „Termine anzeigen“ je Datum mit „Termin entfällt“ ausschließen; „Wieder aufnehmen“ stellt den Termin wieder her. Beim Anlegen zwischen einzelnem Termin und wöchentlicher Serie wählen; Serien lassen sich über Enddatum oder eine feste Anzahl (z. B. sechs Termine) begrenzen. Manuelle Vorlesungs-/Übungszeiten ersetzen überlappende automatische Termine desselben Kurses. Die Anrechnung wird aus den vorhandenen Daten berechnet und erzeugt keine zusätzlichen gespeicherten Zeiteinträge; keine neue SQL-Migration nötig.
+Statistiken zeigen eine blätterbare Wochenansicht mit gestapelten Tagesbalken, Vorwochenvergleich, aktiven Tagen und erledigten Aufgaben. Grün steht für Selbststudium/Privatzeit, Lila für Lehrveranstaltungen. In Kursen unter „Wöchentliche Lehrveranstaltungen“ Termine mit Wochentag, Uhrzeit und Semesterzeitraum hinterlegen. Vollständig vergangene Termine werden bei aktivierter automatischer Zeiterfassung und bestätigter Teilnahme angerechnet. Ausfälle und Ferien über „Termine anzeigen“ je Datum mit „Termin entfällt“ ausschließen; „Wieder aufnehmen“ stellt den Termin wieder her. Beim Anlegen zwischen einzelnem Termin und wöchentlicher Serie wählen; Serien lassen sich über Enddatum oder eine feste Anzahl (z. B. sechs Termine) begrenzen. Manuelle Vorlesungs-/Übungszeiten ersetzen überlappende automatische Termine desselben Kurses. Die Anrechnung wird aus den vorhandenen Daten berechnet und erzeugt keine zusätzlichen gespeicherten Zeiteinträge; keine neue SQL-Migration nötig.
 
 Die Kursbalken zeigen zwei Prozentwerte: Selbststudium geteilt durch ECTS-Gesamtstunden abzüglich geplanter LV-Stunden sowie Selbststudium plus vergangene LV-Zeit geteilt durch ECTS-Gesamtstunden. Beim Entfernen einer Terminserie entfällt auch deren automatisch berechneter Anteil. Manuell erfasste Zeiten bleiben erhalten.
 
+Oben unter **Kurse** zeigt der Studienaufwand für das ausgewählte Semester die geleisteten Stunden, das Stundenziel und die ECTS nach Zeitaufwand. Der zweifarbige Balken zeigt Selbststudium und Lehrveranstaltungen. Die ECTS nach Zeitaufwand ergeben sich aus den geleisteten Stunden und dem jeweiligen Kursrichtwert, begrenzt auf die ECTS des Kurses. Bei „Alle Semester“ wird die Semesterzusammenfassung ausgeblendet.
+
 Ausgefallene Lehrveranstaltungen werden in den vorhandenen Einstellungen gespeichert und mit dem Backup exportiert. Sie zählen weder als absolvierte noch als geplante LV-Stunden. Manuell erfasste Arbeitszeiten bleiben auch bei einem ausgeschlossenen Termin erhalten. Es ist keine zusätzliche Datenbankmigration nötig.
 
-Bei Cloud-Anmeldung wird der aktive Timer kontoweit in `settings` gespeichert (Schlüssel `active-timer-v1`). Starten, Pausieren, Fortsetzen und Stoppen sind damit geräteübergreifend möglich; sichtbare App-Fenster gleichen den Status alle drei Sekunden und beim Zurückkehren ab. Es ist keine zusätzliche SQL-Migration erforderlich. Beide Geräte benötigen dieselbe Anmeldung, die aktualisierte App und eine Internetverbindung. Ohne Cloud bleibt der Timer gerätelokal.
+Bei Cloud-Anmeldung speichert die App den aktiven Timer für das Konto unter `active-timer-v1` in `settings`. Sichtbare Fenster gleichen den Status alle drei Sekunden sowie bei erneutem Fokus oder wiederhergestellter Internetverbindung ab. Änderungen vergleichen den bisherigen Serverwert, damit ein älterer Timerstand keinen neueren überschreibt. Im SQLite-Modus bleibt der aktive Timer im Browser.
 
-Timeränderungen vergleichen den vorherigen Serverwert, damit ein veraltetes Gerät keinen neueren Zustand überschreibt. Beim Stoppen bleiben Endzeit und Eintrags-ID für Wiederholungen erhalten; fehlgeschlagene Speicherversuche können über „Stoppen & speichern“ wiederholt werden. Ein bereits lokal laufender Timer wird beim ersten Abgleich übernommen, wenn für das Konto noch kein Timerstatus existiert.
+Führe für bestehende Cloud-Installationen [`supabase/finish-timer.sql`](supabase/finish-timer.sql) einmal im SQL Editor aus. Die Funktion speichert den Zeiteintrag und beendet den Timer in derselben Transaktion. Wiederholungen verwenden dieselbe Eintrags-ID. Bei einer neuen Installation ist die Funktion bereits in `supabase/schema.sql` enthalten. Bis die Migration eingespielt ist, nutzt die App den bisherigen mehrstufigen Speicherweg.
+
+Start, Pause und Fortsetzen reagieren direkt in der Anzeige. Bei einer fehlgeschlagenen Cloud-Bestätigung stellt die App den bisherigen Stand wieder her und gleicht ihn mit der Cloud ab. Für einen einzelnen Bedienvorgang wartet die Oberfläche bis zu etwa vier Sekunden auf die Cloud.
 
 Die Zeiterfassung enthält 365 unterschiedliche Tagessprüche (`src/dailySayings.ts`), überwiegend neu formulierte Alltagsimpulse ohne Autorenzuschreibung. Der erste Spruch ist aus der Designvorlage übernommen. Die Sammlung ist keine Liste belegter historischer Zitate. Der fortlaufende 365-Tage-Zyklus wechselt um Mitternacht in Europe/Vienna und berücksichtigt Schaltjahre ohne eine zusätzliche Wiederholung am 29. Februar. Der Hintergrund wurde mit dem eingebauten Bildgenerierungstool erstellt; Prompt und Herkunft stehen in `src/assets/focus-sunset.md`. Das Fokusziel ist eine Orientierung: Die Zeiterfassung zählt weiterhin aufwärts und stoppt erst auf Wunsch.
 
-Timerbedienung: Die Uhr zeigt vor dem Start `0:00` und zählt aufwärts. Pause hält die Erfassung ohne Eintrag an; Fortsetzen zählt weiter. Stoppen friert die Zeit ein und öffnet kontoweit die Entscheidung Speichern/Verwerfen. Zurück zum Timer lässt ihn pausiert. Auch beim Gerätewechsel bleibt dieser Entscheidungszustand erhalten. Zeit nachtragen ist jederzeit in der Zeiterfassung verfügbar.
+„Stoppen“ friert die Zeit in der geöffneten App ein und zeigt „Zeit speichern“ und „Verwerfen“ an. „Zurück zum Timer“ lässt ihn pausiert. Bei einer unterbrochenen Verbindung kann der Stoppzeitpunkt im offenen Dialog für einen erneuten Speicherversuch erhalten bleiben. Ein Neuladen kann den lokalen, ungespeicherten Stoppzeitpunkt verwerfen. Über „Zeit nachtragen“ lässt sich ein Zeiteintrag auch manuell hinzufügen.
 
 ### Anwesenheiten
 
@@ -136,6 +125,8 @@ Die Kurskarten unter **Kurse** lassen sich am Griff mit Maus oder Finger auf ein
 Auf dem Handy ist die Zeiterfassung scrollbar: Kursauswahl, Timer und große Bedienelemente stehen zuerst, gefolgt vom Tagesspruch und den letzten Sitzungen. Die Uhr wird nicht mehr verkleinert, um alle Inhalte gleichzeitig in eine Bildschirmhöhe zu pressen. Die Kurskarten haben nur einen Ziehgriff, keine sichtbaren Pfeiltasten.
 
 Unter Leistungen erscheinen alle vorhandenen verknüpften Blätter, auch offene und nachträglich übernommene. Punkte können direkt beim jeweiligen Blatt eingetragen werden und zählen unabhängig vom Aufgaben-Häkchen; Teilnahme- und Streichregeln gelten weiterhin. Die Bearbeitungsanzeige zählt separat die abgehakten Aufgaben. Nach einem Blätter-Abgleich verwendet die Liste die aktuellen Blattnamen und Termine; verwaiste Punkteverknüpfungen erzeugen keine zusätzlichen Blattzeilen.
+
+Bei einer Blattwertung mit Streichregel erscheint „Erfüllt“ vorzeitig, wenn die anrechenbare Mindestleistung gesichert ist und mindestens so viele Blattergebnisse offen sind, wie Blätter gestrichen werden. Die abschließende Wertung wendet die Streichregel auf die erfassten Ergebnisse an.
 
 ## Vorübergehendes Engila Bengila
 

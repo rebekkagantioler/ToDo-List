@@ -251,7 +251,7 @@ function Courses({data,mutate}:{data:AppData;mutate:any}){
    <div><dt>Arbeitszeit</dt><dd>{number.format(workload.hours)} von {number.format(workload.targetHours)} Stunden</dd></div>
    <div><dt>ECTS nach Zeitaufwand</dt><dd>{number.format(workload.workloadEcts)} von {number.format(workload.totalEcts)} ECTS</dd></div>
   </dl>
-  <WorkloadBar work={workload.work} lecture={workload.lecture} target={workload.targetHours*60}/>
+  <div className="course-progress"><WorkloadBar work={workload.work} lecture={workload.lecture} target={workload.targetHours*60}/></div>
  </section>}
  <DirectLabel className="semester-picker course-semester-picker">Semester<select value={chosen} onChange={e=>setSemesterId(e.target.value)}>{periods.map(s=><option key={s.id} value={s.id}>{s.name} · {semesterStatus(s)}</option>)}{unmatched.map(name=><option key={name} value={`label:${name}`}>{name} · ohne Zeitraum</option>)}<option value="all">Alle Semester</option></select></DirectLabel>
  <SortableCourses data={data} shownIds={shownCourses.map(c=>c.id)} mutate={mutate} onOpen={setDetail}/>{!shownCourses.length&&<Empty icon={<BookOpen/>} title="Keine Kurse in diesem Semester" text="Wähle ein anderes Semester oder lege einen Kurs an."/>}
