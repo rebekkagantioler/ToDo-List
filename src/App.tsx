@@ -242,16 +242,17 @@ function Courses({data,mutate}:{data:AppData;mutate:any}){
  const shownCourses=university.filter(c=>chosen==='all'||(period?courseInSemester(c,period):c.semester===chosen.slice(6)));
  const [open,setOpen]=useState(false),[selected,setSelected]=useState<Course|null>(null),[detail,setDetail]=useState<Course|null>(null);
  if(detail){const course=data.courses.find(c=>c.id===detail.id);if(course)return <CourseDetail course={course} data={data} mutate={mutate} onBack={()=>setDetail(null)}/>}
- const workload=courseWorkload(university,data);
+ const workload=chosen==='all'?null:courseWorkload(shownCourses,data);
  const number=new Intl.NumberFormat('de-AT',{maximumFractionDigits:2});
  return <><div className="page-heading"><div><p className="eyebrow">Studium</p><h1>Kurse</h1><p className="muted">{shownCourses.length} Kurse · Alle Semester bleiben zugänglich.</p></div><button className="primary" onClick={()=>{setSelected(null);setOpen(true)}}><Plus size={17}/>Kurs anlegen</button></div>
- <section className="course-workload" aria-label="Studienaufwand über alle Semester">
-  <h2>Studienaufwand · Alle Semester</h2>
+ {workload&&<section className="course-workload">
+  <h2>Studienaufwand · {period?.name??chosen.slice(6)}</h2>
   <dl>
    <div><dt>Arbeitszeit</dt><dd>{number.format(workload.hours)} von {number.format(workload.targetHours)} Stunden</dd></div>
    <div><dt>ECTS nach Zeitaufwand</dt><dd>{number.format(workload.workloadEcts)} von {number.format(workload.totalEcts)} ECTS</dd></div>
   </dl>
- </section>
+  <WorkloadBar work={workload.work} lecture={workload.lecture} target={workload.targetHours*60}/>
+ </section>}
  <DirectLabel className="semester-picker course-semester-picker">Semester<select value={chosen} onChange={e=>setSemesterId(e.target.value)}>{periods.map(s=><option key={s.id} value={s.id}>{s.name} · {semesterStatus(s)}</option>)}{unmatched.map(name=><option key={name} value={`label:${name}`}>{name} · ohne Zeitraum</option>)}<option value="all">Alle Semester</option></select></DirectLabel>
  <SortableCourses data={data} shownIds={shownCourses.map(c=>c.id)} mutate={mutate} onOpen={setDetail}/>{!shownCourses.length&&<Empty icon={<BookOpen/>} title="Keine Kurse in diesem Semester" text="Wähle ein anderes Semester oder lege einen Kurs an."/>}
  {open&&<CourseModal data={data} defaultSemester={period?.name||active.name} mutate={mutate} course={selected} onClose={()=>setOpen(false)} onDelete={selected?async()=>{await mutate(`/courses/${selected.id}`,'DELETE');setOpen(false)}:undefined} onSave={async v=>{await mutate(selected?`/courses/${selected.id}`:'/courses',selected?'PUT':'POST',v);setOpen(false)}}/>}</>;
@@ -342,9 +343,16 @@ function SessionModal({data,onClose,onSave,session,onStart,initialTaskId,initial
  </Modal>;
 }
 
+function WorkloadBar({work,lecture,target}:{work:number;lecture:number;target:number}){
+ const workWidth=target>0?Math.min(100,work/target*100):0;
+ const lectureWidth=target>0?Math.min(100-workWidth,lecture/target*100):0;
+ const percent=target>0?Math.round((work+lecture)/target*100):0;
+ return <>{target>0&&<div className="progress stacked-progress" role="progressbar" aria-label="Arbeitszeit im Verhältnis zum Stundenziel" aria-valuenow={Math.min(100,percent)} aria-valuetext={`${percent} Prozent des Stundenziels`}><i style={{width:`${workWidth}%`}}/><i className="lecture-fill" style={{width:`${lectureWidth}%`}}/></div>}<div className="progress-legend"><span><i/>{fmtMinutes(Math.round(work))} Selbststudium</span><span><i className="lecture-fill"/>{fmtMinutes(Math.round(lecture))} LV</span></div></>;
+}
+
 function CourseProgress({course,data}:{course:Course;data:AppData}){
- const p=courseProgress(course,data);const workWidth=Math.min(100,p.target?p.work/p.target*100:0),lectureWidth=Math.min(100-workWidth,p.target?p.lecture/p.target*100:0);
- return <div className="course-progress">{p.target>0&&<><div className="progress-percentages"><span>Selbststudium <b>{p.workTarget>0?`${Math.round(p.workPercent)}%`:"–"}</b></span><span>Gesamt inkl. LV <b>{Math.round(p.totalPercent)}%</b></span></div><div className="progress stacked-progress" aria-label={`${Math.round(p.totalPercent)} Prozent des ECTS-Richtwerts`}><i style={{width:`${workWidth}%`}}/><i className="lecture-fill" style={{width:`${lectureWidth}%`}}/></div></>}<div className="progress-legend"><span><i/>{fmtMinutes(Math.round(p.work))} Selbststudium</span><span><i className="lecture-fill"/>{fmtMinutes(Math.round(p.lecture))} LV</span></div><small className="muted">{p.target>0?`Selbststudium: ${fmtMinutes(Math.round(p.workTarget))} Ziel · Gesamt: ${fmtMinutes(Math.round(p.target))}`:"Kein Stundenziel hinterlegt · Fortschritt ohne Prozentwertung"}</small></div>
+ const p=courseProgress(course,data);
+ return <div className="course-progress">{p.target>0&&<div className="progress-percentages"><span>Selbststudium <b>{p.workTarget>0?`${Math.round(p.workPercent)}%`:"–"}</b></span><span>Gesamt inkl. LV <b>{Math.round(p.totalPercent)}%</b></span></div>}<WorkloadBar work={p.work} lecture={p.lecture} target={p.target}/><small className="muted">{p.target>0?`Selbststudium: ${fmtMinutes(Math.round(p.workTarget))} Ziel · Gesamt: ${fmtMinutes(Math.round(p.target))}`:"Kein Stundenziel hinterlegt · Fortschritt ohne Prozentwertung"}</small></div>
 }
 function LectureSchedule({embedded=false,course,data,mutate}:{embedded?:boolean;course:Course;data:AppData;mutate:any}){
  const Container=embedded?'section':'details',Heading=embedded?'h2':'summary';

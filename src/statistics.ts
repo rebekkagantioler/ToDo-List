@@ -71,20 +71,25 @@ export function courseProgress(course:Course,data:AppData,now=new Date()){
  return {work,lecture,target,workTarget,workPercent:workTarget?work/workTarget*100:0,totalPercent:target?(work+lecture)/target*100:0};
 }
 export function courseWorkload(courses:Course[],data:AppData,now=new Date()){
- const minutesByCourse=new Map<number,number>();
+ const minutesByCourse=new Map<number,{work:number;lecture:number}>();
  for(const session of [...data.sessions,...attendance(data,now)]){
   const id=courseOf(session,data);
-  if(id!==null)minutesByCourse.set(id,(minutesByCourse.get(id)??0)+duration(session));
+  if(id===null)continue;
+  const minutes=minutesByCourse.get(id)??{work:0,lecture:0};
+  minutes[isLecture(session)?'lecture':'work']+=duration(session);
+  minutesByCourse.set(id,minutes);
  }
- let totalEcts=0,workloadEcts=0,hours=0,targetHours=0;
+ let totalEcts=0,workloadEcts=0,work=0,lecture=0,targetHours=0;
  for(const course of courses){
-  const courseHours=(minutesByCourse.get(course.id)??0)/60;
+  const minutes=minutesByCourse.get(course.id)??{work:0,lecture:0};
+  const courseHours=(minutes.work+minutes.lecture)/60;
   totalEcts+=course.ects;
   targetHours+=course.ects*course.hours_per_ects;
-  hours+=courseHours;
+  work+=minutes.work;
+  lecture+=minutes.lecture;
   if(course.hours_per_ects>0)workloadEcts+=Math.min(course.ects,courseHours/course.hours_per_ects);
  }
- return {totalEcts,workloadEcts,hours,targetHours};
+ return {totalEcts,workloadEcts,hours:(work+lecture)/60,targetHours,work,lecture};
 }
 export function dailyMinutes(sessions:Session[],day:Date){
  const end=new Date(day);end.setDate(end.getDate()+1);

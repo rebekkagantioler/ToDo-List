@@ -707,3 +707,5 @@ label,.course-visibility-choice{cursor:default}input:is([type=checkbox],[type=ra
 }
 .course-workload dt { color: var(--muted); font-size: 13px; }
 .course-workload dd { margin: 4px 0 0; font-size: 20px; font-weight: 700; }
+.course-workload .stacked-progress { margin-top: 16px; }
+.course-workload .progress-legend { margin-bottom: 0; }
