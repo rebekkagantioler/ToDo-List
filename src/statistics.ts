@@ -70,6 +70,22 @@ export function courseProgress(course:Course,data:AppData,now=new Date()){
  const workTarget=Math.max(0,target-Math.max(planned,lecture));
  return {work,lecture,target,workTarget,workPercent:workTarget?work/workTarget*100:0,totalPercent:target?(work+lecture)/target*100:0};
 }
+export function courseWorkload(courses:Course[],data:AppData,now=new Date()){
+ const minutesByCourse=new Map<number,number>();
+ for(const session of [...data.sessions,...attendance(data,now)]){
+  const id=courseOf(session,data);
+  if(id!==null)minutesByCourse.set(id,(minutesByCourse.get(id)??0)+duration(session));
+ }
+ let totalEcts=0,workloadEcts=0,hours=0,targetHours=0;
+ for(const course of courses){
+  const courseHours=(minutesByCourse.get(course.id)??0)/60;
+  totalEcts+=course.ects;
+  targetHours+=course.ects*course.hours_per_ects;
+  hours+=courseHours;
+  if(course.hours_per_ects>0)workloadEcts+=Math.min(course.ects,courseHours/course.hours_per_ects);
+ }
+ return {totalEcts,workloadEcts,hours,targetHours};
+}
 export function dailyMinutes(sessions:Session[],day:Date){
  const end=new Date(day);end.setDate(end.getDate()+1);
  return sessions.reduce((sum,s)=>sum+Math.max(0,Math.min(end.getTime(),new Date(s.ended_at).getTime())-Math.max(day.getTime(),new Date(s.started_at).getTime()))/60000,0);

@@ -30,7 +30,7 @@ import { selectCourseContents, courseOrigin, type CourseTemplate, type CourseOri
 import { groupTasksByDay, groupTaskDaysByWeek, type TaskDayGroup } from './taskGroups';
 import { api, isConnectionError, loadData, loadCourseCatalog, loadCourseSource } from './api';
 import { applySavedRecord, byDeadline } from './data';
-import { attendanceKey, attendanceRequests, attendance, courseProgress, dailyMinutes, semesterSummary, semesterWeeks, weekComparison, excludedDates, canceledDates, unplannedDates, unplannedKey, exclusionKey, isLecture, lastOccurrence, occurrenceDates } from './statistics';
+import { attendanceKey, attendanceRequests, attendance, courseProgress, courseWorkload, dailyMinutes, semesterSummary, semesterWeeks, weekComparison, excludedDates, canceledDates, unplannedDates, unplannedKey, exclusionKey, isLecture, lastOccurrence, occurrenceDates } from './statistics';
 import { orderedCourses, moveCourse, courseOrderKey } from './courseOrder';
 import { attendancePolicyKey, attendancePolicy, courseAttendance } from './attendance';
 import type { AppData, Block, Course, Session, Task } from './types';
@@ -242,7 +242,16 @@ function Courses({data,mutate}:{data:AppData;mutate:any}){
  const shownCourses=university.filter(c=>chosen==='all'||(period?courseInSemester(c,period):c.semester===chosen.slice(6)));
  const [open,setOpen]=useState(false),[selected,setSelected]=useState<Course|null>(null),[detail,setDetail]=useState<Course|null>(null);
  if(detail){const course=data.courses.find(c=>c.id===detail.id);if(course)return <CourseDetail course={course} data={data} mutate={mutate} onBack={()=>setDetail(null)}/>}
+ const workload=courseWorkload(university,data);
+ const number=new Intl.NumberFormat('de-AT',{maximumFractionDigits:2});
  return <><div className="page-heading"><div><p className="eyebrow">Studium</p><h1>Kurse</h1><p className="muted">{shownCourses.length} Kurse · Alle Semester bleiben zugänglich.</p></div><button className="primary" onClick={()=>{setSelected(null);setOpen(true)}}><Plus size={17}/>Kurs anlegen</button></div>
+ <section className="course-workload" aria-label="Studienaufwand über alle Semester">
+  <h2>Studienaufwand · Alle Semester</h2>
+  <dl>
+   <div><dt>Arbeitszeit</dt><dd>{number.format(workload.hours)} von {number.format(workload.targetHours)} Stunden</dd></div>
+   <div><dt>ECTS nach Zeitaufwand</dt><dd>{number.format(workload.workloadEcts)} von {number.format(workload.totalEcts)} ECTS</dd></div>
+  </dl>
+ </section>
  <DirectLabel className="semester-picker course-semester-picker">Semester<select value={chosen} onChange={e=>setSemesterId(e.target.value)}>{periods.map(s=><option key={s.id} value={s.id}>{s.name} · {semesterStatus(s)}</option>)}{unmatched.map(name=><option key={name} value={`label:${name}`}>{name} · ohne Zeitraum</option>)}<option value="all">Alle Semester</option></select></DirectLabel>
  <SortableCourses data={data} shownIds={shownCourses.map(c=>c.id)} mutate={mutate} onOpen={setDetail}/>{!shownCourses.length&&<Empty icon={<BookOpen/>} title="Keine Kurse in diesem Semester" text="Wähle ein anderes Semester oder lege einen Kurs an."/>}
  {open&&<CourseModal data={data} defaultSemester={period?.name||active.name} mutate={mutate} course={selected} onClose={()=>setOpen(false)} onDelete={selected?async()=>{await mutate(`/courses/${selected.id}`,'DELETE');setOpen(false)}:undefined} onSave={async v=>{await mutate(selected?`/courses/${selected.id}`:'/courses',selected?'PUT':'POST',v);setOpen(false)}}/>}</>;
